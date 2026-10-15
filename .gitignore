@@ -1,0 +1,23 @@
+# Settings and secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# Writable files (uploads, cache) belong in STORAGE_DIR, outside the repository
+storage/
+
+# Dependencies (not used: plain PHP only)
+vendor/
+node_modules/
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini

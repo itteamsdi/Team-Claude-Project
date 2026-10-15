@@ -472,7 +472,30 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 /* read-only mode (viewer without edit rights) */
 #ro-banner{display:none;background:#1e3a5f;color:#fff;padding:9px 14px;font-size:12.5px;text-align:center;border-radius:8px;margin-bottom:14px;}
 .ro-mode #ro-banner{display:block;}
-.ro-mode .main input,.ro-mode .main textarea,.ro-mode .main select,.ro-mode .main [contenteditable="true"]{pointer-events:none;background:#f5f6f9 !important;}
+.ro-mode .main:has(> .hr-page.active) #ro-banner{display:none;}
+.ro-mode .main > .page:not(.hr-page) input,.ro-mode .main > .page:not(.hr-page) textarea,.ro-mode .main > .page:not(.hr-page) select,.ro-mode .main > .page:not(.hr-page) [contenteditable="true"]{pointer-events:none;background:#f5f6f9 !important;}
+/* sign-off panel + history */
+.so-panel{padding:14px 22px 18px;border-top:1px solid var(--border);}
+.so-sigs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.so-sig{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:#fff;}
+.so-sig.done{border-color:#86efac;background:#f0fdf4;}
+.so-role{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+.so-who{font-size:13px;font-weight:600;color:var(--ink);margin:2px 0;}
+.so-when{font-size:11.5px;color:var(--muted);}
+.so-sig.done .so-when{color:#166534;font-weight:600;}
+.so-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.so-locked{background:#f0fdf4;border:1px solid #86efac;color:#166534;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:600;margin-bottom:12px;}
+.auth-badge-sign{background:#e0e7ff;color:#3730a3;}
+.hist-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.hist-stat{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.hist-stat .lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);}
+.hist-stat .val{font-size:20px;font-weight:700;color:var(--ink);margin-top:2px;}
+.hist-tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.hist-tbl th{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:8px 10px;background:var(--surface);border-bottom:1px solid var(--border);}
+.hist-tbl td{padding:9px 10px;font-size:12.5px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.hist-tbl tr:last-child td{border-bottom:none;}
+.hist-wrap{overflow-x:auto;}
+@media (max-width:640px){.so-sigs,.hist-stats{grid-template-columns:1fr;}}
 .ro-mode .main .sec-card button,.ro-mode .main .hcard,.ro-mode .main .cfo-rag-btn{pointer-events:none;opacity:.7;}
 .ro-mode #sb-emp-name,.ro-mode #sb-emp-role,.ro-mode #sb-date,.ro-mode #sb-mgr-name,.ro-mode .sb-export,.ro-mode .sb-reset{pointer-events:none;opacity:.6;}
 /* TOP-LEVEL TAB BAR (Review is one tab among peers) */
@@ -658,6 +681,7 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
   <button class="topbar-tab" data-tab="expenses" onclick="showTab('expenses')">💷 Expense Claim</button>
   <button class="topbar-tab" data-tab="jd" onclick="showTab('jd')">📋 Job Description</button>
   <button class="topbar-tab" data-tab="review" onclick="showTab('review')">1-2-1 Review</button>
+  <button class="topbar-tab" data-tab="history" onclick="showTab('history')">📚 1-2-1 History</button>
   <button class="topbar-tab" data-tab="followup" onclick="showTab('followup')">🔄 Follow-Up to 1-2-1</button>
   <div class="tb-spacer"></div>
   <button class="topbar-tab tb-admin" id="tb-team" style="display:none;" onclick="DB.openTeam()">⚙ Manage Team</button>
@@ -698,7 +722,7 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 </nav>
 
 <main class="main">
-  <div id="ro-banner">👁 View only — you can see this review, but only the employee and their direct line manager can make changes.</div>
+  <div id="ro-banner"><span id="ro-banner-text">👁 View only — you can see this review, but only the employee and their direct line manager can make changes.</span></div>
 
   <!-- 2026 GOALS OPENER -->
   <div id="page-goals" class="page active">
@@ -1252,16 +1276,17 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 
     <div class="sum-card">
       <div class="sum-card-head"><h3>Sign-off</h3></div>
-      <div style="padding:10px 18px 6px;font-size:11.5px;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border);">Sign-off is confirmed by email. Enter the email addresses below and note the date the review was agreed.</div>
+      <div style="padding:10px 18px 6px;font-size:11.5px;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border);">When the review is finished, the employee and the line manager each sign off below using their own signed-in account. Once both have signed, the review is marked <b>Complete</b>, locked, and moves to <b>1-2-1 History</b>.</div>
       <div class="signoff-grid" style="grid-template-columns:1fr 1fr 1fr;">
-        <div class="signoff-col"><label>Employee</label><input type="text" id="so-emp-name" placeholder="Employee Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.empName=this.value;document.getElementById(&#39;sb-emp-name&#39;).value=this.value;updateMeta();"><input type="email" placeholder="employee@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;"></div>
-        <div class="signoff-col"><label>Manager</label><input type="text" id="so-mgr-name" placeholder="Manager Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.mgrName=this.value;document.getElementById(&#39;sb-mgr-name&#39;).value=this.value;updateMeta();"><input type="email" placeholder="manager@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;"></div>
-        <div class="signoff-col" style="border-right:none;"><label>Chair</label><input type="text" placeholder="Chair Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;"><input type="email" placeholder="chair@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;"></div>
+        <div class="signoff-col"><label>Employee</label><input type="text" id="so-emp-name" placeholder="Employee Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.empName=this.value;document.getElementById(&#39;sb-emp-name&#39;).value=this.value;updateMeta();"><input type="email" id="so-emp-email" placeholder="employee@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('empEmail',this.value)"></div>
+        <div class="signoff-col"><label>Manager</label><input type="text" id="so-mgr-name" placeholder="Manager Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.mgrName=this.value;document.getElementById(&#39;sb-mgr-name&#39;).value=this.value;updateMeta();"><input type="email" id="so-mgr-email" placeholder="manager@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('mgrEmail',this.value)"></div>
+        <div class="signoff-col" style="border-right:none;"><label>Chair</label><input type="text" id="so-chair-name" placeholder="Chair Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="setSignoff('chairName',this.value)"><input type="email" id="so-chair-email" placeholder="chair@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('chairEmail',this.value)"></div>
       </div>
       <div class="signoff-dates">
-        <div class="signoff-date"><strong>Date agreed:</strong> <input type="date" class="inline-in" style="width:160px;"></div>
-        <div class="signoff-date"><strong>Next review date:</strong> <input type="date" class="inline-in" style="width:160px;"></div>
+        <div class="signoff-date"><strong>Date agreed:</strong> <input type="date" id="so-date-agreed" class="inline-in" style="width:160px;" oninput="setSignoff('dateAgreed',this.value)"></div>
+        <div class="signoff-date"><strong>Next review date:</strong> <input type="date" id="so-next-review" class="inline-in" style="width:160px;" oninput="setSignoff('nextReview',this.value)"></div>
       </div>
+      <div id="so-panel" class="so-panel"></div>
     </div>
     <div class="nav-btns" style="background:transparent;border:none;padding:12px 0 0;">
       <button class="btn btn-ghost" onclick="showHome()">← Back to overview</button>
@@ -1481,7 +1506,7 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
     </div>
   </div>
 
-  <div id="page-reviews" class="page">
+  <div id="page-reviews" class="page hr-page">
     <div class="hr-head"><h1>1-2-1 Reviews</h1>
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="auth-avatar" id="auth-avatar" style="width:30px;height:30px;font-size:12px;">?</div>
@@ -1502,13 +1527,14 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
       </div>
     </div>
   </div>
-  <div id="page-handbook" class="page"></div>
-  <div id="page-jd" class="page"></div>
-  <div id="page-selfcert" class="page"></div>
-  <div id="page-expenses" class="page"></div>
-  <div id="page-flexwork" class="page"></div>
-  <div id="page-dse" class="page"></div>
-  <div id="page-followup" class="page"></div>
+  <div id="page-handbook" class="page hr-page"></div>
+  <div id="page-jd" class="page hr-page"></div>
+  <div id="page-selfcert" class="page hr-page"></div>
+  <div id="page-expenses" class="page hr-page"></div>
+  <div id="page-flexwork" class="page hr-page"></div>
+  <div id="page-dse" class="page hr-page"></div>
+  <div id="page-followup" class="page hr-page"></div>
+  <div id="page-history" class="page hr-page"></div>
 
 </main>
 </div>
@@ -1808,7 +1834,7 @@ const SECTIONS=[
 
 // STATE
 let currentSi=0;
-const S={ratings:{},wb:{},trendHistory:[],prev:{},prevRatings:{},responses:{},qsliders:{},qratings:{},qtrs:{},cfo:{},cfoNote:'',actions:[{text:'',owner:'',date:'',source:''}],meta:{empName:'',empRole:'',date:'',mgrName:''}};
+const S={ratings:{},wb:{},trendHistory:[],prev:{},prevRatings:{},responses:{},qsliders:{},qratings:{},qtrs:{},cfo:{},cfoNote:'',actions:[{text:'',owner:'',date:'',source:''}],meta:{empName:'',empRole:'',date:'',mgrName:''},signoff:{}};
 
 // HELPERS
 const countEmoji=id=>{
@@ -1914,9 +1940,10 @@ function clearState(){
     ratings:{},wb:{},prev:{},prevRatings:{},responses:{},qsliders:{},qratings:{},
     cfo:{},cfoNote:'',trendHistory:[],carryForward:[],
     mgrCommitment:'',prep:{},reflSelf:{},
-    meta:{empName:'',empRole:'',date:'',mgrName:''},
+    meta:{empName:'',empRole:'',date:'',mgrName:''},signoff:{},
     actions:[{text:'',owner:'',ownerType:'',date:'',source:'',status:'open'}]
   });
+  try{restoreSignoff();}catch(e){}
   // Force clear all visual emoji selections immediately
   document.querySelectorAll('.sel-struggling,.sel-good,.sel-great').forEach(function(b){
     b.classList.remove('sel-struggling','sel-good','sel-great');
@@ -2285,6 +2312,15 @@ function restoreMeta(){
   updateMeta();
 }
 
+// SIGN-OFF FIELDS (emails, chair, dates) — saved with the review
+const SIGNOFF_FIELDS={empEmail:'so-emp-email',mgrEmail:'so-mgr-email',chairName:'so-chair-name',chairEmail:'so-chair-email',dateAgreed:'so-date-agreed',nextReview:'so-next-review'};
+function setSignoff(k,v){if(!S.signoff)S.signoff={};S.signoff[k]=v;autosave();}
+function restoreSignoff(){
+  const so=S.signoff||{};
+  Object.keys(SIGNOFF_FIELDS).forEach(k=>{const el=document.getElementById(SIGNOFF_FIELDS[k]);if(el&&!el.matches(':focus'))el.value=so[k]||'';});
+  if(window.DB&&typeof DB.renderSignoff==='function')DB.renderSignoff();
+}
+
 // SIDEBAR TOGGLE
 function toggleSidebar(){
   const sb=document.getElementById('sidebar');
@@ -2623,6 +2659,7 @@ try{buildSections();}catch(e){console.warn('buildSections:',e);}
 try{buildCfoKpis();}catch(e){console.warn('buildCfoKpis:',e);}
 try{restoreCfoNote();}catch(e){console.warn('restoreCfoNote:',e);}
 try{restoreMeta();}catch(e){console.warn('restoreMeta:',e);}
+try{restoreSignoff();}catch(e){console.warn('restoreSignoff:',e);}
 try{loadPrep();}catch(e){console.warn('loadPrep:',e);}
 try{const ce=document.getElementById('mgr-commitment');if(ce&&S.mgrCommitment)ce.value=S.mgrCommitment;}catch(e){}
 try{showSection(0);}catch(e){console.warn('showSection:',e);}
@@ -2675,6 +2712,7 @@ try{buildSections();}catch(e){console.warn('buildSections:',e);}
 try{buildCfoKpis();}catch(e){console.warn('buildCfoKpis:',e);}
 try{restoreCfoNote();}catch(e){console.warn('restoreCfoNote:',e);}
 try{restoreMeta();}catch(e){console.warn('restoreMeta:',e);}
+try{restoreSignoff();}catch(e){console.warn('restoreSignoff:',e);}
 try{loadPrep();}catch(e){console.warn('loadPrep:',e);}
 try{const ce=document.getElementById('mgr-commitment');if(ce&&S.mgrCommitment)ce.value=S.mgrCommitment;}catch(e){}
 try{showSection(0);}catch(e){console.warn('showSection:',e);}
@@ -3916,9 +3954,10 @@ window.DB = {
     this.showGate();
   },
   backToReviews(){
-    this.stopPoll(); this.currentId=null;
+    this.stopPoll(); this.currentId=null; this.applyReadonly(false);
     const p=document.getElementById("auth-pill"); if(p) p.classList.remove("show");
     if(typeof showTab==="function") showTab("review");
+    this.loadReviews();
   },
 
   async afterLogin(){
@@ -3947,19 +3986,23 @@ window.DB = {
     const { data, error } = await this.client.from(this.table).select("*").order("updated_at",{ascending:false});
     if(error){ box.innerHTML='<div class="auth-empty">Couldn\'t load reviews: '+this.esc(error.message)+'</div>'; return; }
     this.items = data||[];
-    if(!this.items.length){ box.innerHTML='<div class="auth-empty">No reviews yet — create one below.</div>'; return; }
-    box.innerHTML=this.items.map(it=>{
-      const done=(it.status||"")==="Complete";
+    // Signed-off reviews move to 1-2-1 History; this list shows work in progress.
+    const active=this.items.filter(it=>!this.signState(it).complete);
+    const doneN=this.items.length-active.length;
+    const histLink=doneN?'<button class="hr-btn ghost" style="margin-top:6px;" onclick="showTab(\'history\')">📚 '+doneN+' signed-off review'+(doneN===1?"":"s")+' in 1-2-1 History →</button>':'';
+    if(!active.length){ box.innerHTML='<div class="auth-empty">No open reviews — create one below.</div>'+histLink; return; }
+    box.innerHTML=active.map(it=>{
+      const sg=this.signState(it);
       const who=(it.employee_name||it.employee_email||"Review")+(it.manager_name?(" · mgr "+it.manager_name):"");
       const canDel = (it.owner && this.user && it.owner===this.user.id) || this.isAdmin;
       return '<div class="auth-review" onclick="DB.openReview(\''+it.id+'\')">'
         +'<div><div class="auth-review-t">'+DB.esc(it.employee_name||"Review")+'</div>'
         +'<div class="auth-review-m">'+DB.esc(who)+(it.review_date?(" · "+String(it.review_date).slice(0,10)):"")+'</div></div>'
         +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
-        +'<span class="auth-review-badge '+(done?"auth-badge-done":"auth-badge-open")+'">'+(done?"Complete":"Open")+'</span>'
+        +'<span class="auth-review-badge '+(sg.partial?"auth-badge-sign":"auth-badge-open")+'">'+(sg.partial?"Awaiting sign-off":"Open")+'</span>'
         +(canDel?'<button class="auth-del" title="Delete this review" onclick="event.stopPropagation();DB.deleteReview(\''+it.id+'\')">&times;</button>':'')
         +'</div></div>';
-    }).join("");
+    }).join("")+histLink;
   },
 
   openReview(id){
@@ -3969,13 +4012,131 @@ window.DB = {
     this._lastAppliedAt=it.updated_at||null;
     const emp=((it.employee_email)||"").toLowerCase();
     const empRow=this.org.find(m=>(m.email||"").toLowerCase()===emp);
-    this.canEditCurrent = (emp===this.myEmail) || !!(empRow && (empRow.manager_email||"").toLowerCase()===this.myEmail);
-    this.applyReadonly(!this.canEditCurrent);
+    this.isPartyCurrent = (emp===this.myEmail) || !!(empRow && (empRow.manager_email||"").toLowerCase()===this.myEmail);
+    this.applyLock(it);
     this.applyState(obj);
     this.hideGate();
     if(typeof showTab==="function") showTab("review");   // show the review area (sidebar + sections)
-    this.setPill(this.canEditCurrent?"Saved ✓":"View only");
+    const sg=this.signState(it);
+    this.setPill(sg.complete?"🔒 Signed off":(sg.partial?"Awaiting sign-off":(this.canEditCurrent?"Saved ✓":"View only")));
     this.startPoll();
+  },
+
+  /* ---- sign-off + lock (enforced server-side by the reviews_signoff_guard trigger) ---- */
+  currentRow(){ return this.items.find(x=>String(x.id)===String(this.currentId))||null; },
+  signState(row){
+    row=row||{};
+    const complete=(row.status||"")==="Complete";
+    const emp=!!row.employee_signed_at, mgr=!!row.manager_signed_at;
+    return { emp, mgr, complete, partial:!complete&&(emp||mgr), locked:complete||emp||mgr };
+  },
+  // Which signature the signed-in user gives on this review: "employee", "manager" or null.
+  signerRole(row){
+    if(!row) return null;
+    const emp=(row.employee_email||"").toLowerCase(), mgr=(row.manager_email||"").toLowerCase();
+    if(emp && emp===this.myEmail) return "employee";
+    if(mgr ? mgr===this.myEmail : this.isAdmin) return "manager";
+    return null;
+  },
+  applyLock(row){
+    row=row||this.currentRow(); if(!row) return;
+    const sg=this.signState(row);
+    this.canEditCurrent = !!this.isPartyCurrent && !sg.locked;
+    let msg="";
+    if(sg.complete) msg="🔒 Signed off and locked"+(row.completed_at?(" on "+this.fmtDate(row.completed_at)):"")+" — this review is part of the 1-2-1 history and can no longer be changed.";
+    else if(sg.partial) msg="✍ Sign-off in progress — editing is paused. To make changes, withdraw the signature on the Review summary page.";
+    this.applyReadonly(!this.canEditCurrent,msg);
+    this.renderSignoff();
+  },
+  updateRow(row){
+    if(!row) return;
+    const i=this.items.findIndex(x=>String(x.id)===String(row.id));
+    if(i>=0) this.items[i]=Object.assign({},this.items[i],row); else this.items.unshift(row);
+  },
+  // Pick up sign-off changes made by the other person (from polling).
+  syncRow(row){
+    const before=JSON.stringify(this.signState(this.currentRow()));
+    this.updateRow(row);
+    if(JSON.stringify(this.signState(row))!==before){
+      this.applyLock(row);
+      const sg=this.signState(row);
+      this.setPill(sg.complete?"🔒 Signed off":(sg.partial?"Awaiting sign-off":"Saved ✓"));
+    }
+  },
+  personName(email){
+    const r=this.org.find(m=>(m.email||"").toLowerCase()===(email||"").toLowerCase());
+    return (r&&r.full_name)||email||"";
+  },
+  fmtDate(ts,withTime){
+    if(!ts) return "";
+    const d=new Date(ts); if(isNaN(d)) return String(ts);
+    const o={day:"numeric",month:"short",year:"numeric"}; if(withTime){ o.hour="2-digit"; o.minute="2-digit"; }
+    return d.toLocaleString("en-GB",o);
+  },
+  renderSignoff(){
+    const el=document.getElementById("so-panel"); if(!el) return;
+    if(this.mode!=="cloud" || !this.currentId){
+      el.innerHTML='<div class="hr-note">Sign-off is available when you are signed in and working on a shared review.</div>';
+      return;
+    }
+    const row=this.currentRow(); if(!row){ el.innerHTML=""; return; }
+    const sg=this.signState(row), role=this.signerRole(row);
+    const sig=(label,email,at,by)=>'<div class="so-sig'+(at?" done":"")+'"><div class="so-role">'+label+'</div>'
+      +'<div class="so-who">'+DB.esc(this.personName(by||email)||"—")+'</div>'
+      +'<div class="so-when">'+(at?("✓ Signed "+DB.esc(this.fmtDate(at,true))):"Awaiting signature")+'</div></div>';
+    let html=sg.complete?'<div class="so-locked">🔒 Complete — signed off by both and locked'+(row.completed_at?(" on "+DB.esc(this.fmtDate(row.completed_at))):"")+'. It now sits in 1-2-1 History.</div>':"";
+    html+='<div class="so-sigs">'
+      +sig("Employee",row.employee_email,row.employee_signed_at,row.employee_signed_by)
+      +sig("Line manager",row.manager_email,row.manager_signed_at,row.manager_signed_by)+'</div>';
+    const btns=[];
+    if(!sg.complete && role){
+      const mine=role==="employee"?sg.emp:sg.mgr;
+      if(!mine) btns.push('<button class="hr-btn approve" onclick="DB.signOff()">✍ Sign off as '+(role==="employee"?"employee":"line manager")+'</button>');
+      else btns.push('<button class="hr-btn ghost" onclick="DB.withdrawSignoff()">Withdraw my signature</button>');
+    }
+    if(sg.complete && this.isAdmin) btns.push('<button class="hr-btn ghost" onclick="DB.reopenReview()">🔓 Reopen review (admin)</button>');
+    if(sg.complete) btns.push('<button class="hr-btn ghost" onclick="showTab(\'history\')">📚 View 1-2-1 History</button>');
+    html+='<div class="so-actions">'+btns.join("")+'</div>';
+    if(!sg.complete) html+='<div class="hr-note" style="margin-top:8px;">'+(role
+      ?"Signing confirms you agree this review is final. Editing is paused once anyone has signed; it is locked for good when both have signed."
+      :"Only the employee and their line manager can sign off this review.")+'</div>';
+    el.innerHTML=html;
+  },
+  async _signRpc(fn,okMsg){
+    const { data, error } = await this.client.rpc(fn,{ p_id:String(this.currentId) });
+    if(error){ alert("Couldn't update sign-off: "+error.message); await this.refreshCurrent(); return; }
+    const row=Array.isArray(data)?data[0]:data;
+    if(row){ this.updateRow(row); if(row.updated_at) this._lastAppliedAt=row.updated_at; }
+    this.applyLock(row);
+    const sg=this.signState(row);
+    this.setPill(sg.complete?"🔒 Signed off":(sg.partial?"Awaiting sign-off":"Saved ✓"));
+    if(typeof toast==="function") toast(sg.complete?"✓ Review signed off and locked":okMsg);
+  },
+  async signOff(){
+    const row=this.currentRow(), role=this.signerRole(row); if(!row||!role) return;
+    const sg=this.signState(row);
+    const other=role==="employee"?"line manager":"employee";
+    const otherSigned=role==="employee"?sg.mgr:sg.emp;
+    if(!confirm(otherSigned
+      ? "Sign off this review?\n\nThe "+other+" has already signed, so this will mark the review Complete and lock it permanently. It will move to 1-2-1 History."
+      : "Sign off this review?\n\nEditing will be paused for both of you until the "+other+" signs (you can withdraw your signature before then). Once both have signed, the review is locked.")) return;
+    // Save the latest edits first so both signatures cover the same content.
+    if(this.canEditCurrent){
+      if(!S.signoff) S.signoff={};
+      if(!S.signoff.dateAgreed){ S.signoff.dateAgreed=new Date().toISOString().slice(0,10); restoreSignoff(); }
+      clearTimeout(this.saveTimer); this.saveTimer=null;
+      if(!(await this.flushSave())){ alert("Your latest changes couldn't be saved, so the review hasn't been signed. Check your connection and try again."); return; }
+    }
+    await this._signRpc("sign_review","✍ Signed — waiting for the "+other);
+  },
+  async withdrawSignoff(){
+    if(!confirm("Withdraw your signature? The review becomes editable again, and both of you will need to sign off again.")) return;
+    await this._signRpc("unsign_review","Signature withdrawn — the review can be edited again");
+  },
+  async reopenReview(){
+    if(!this.isAdmin) return;
+    if(!confirm("Reopen this signed-off review?\n\nBoth signatures will be cleared and the review becomes editable again. The employee and line manager will need to sign it off again.")) return;
+    await this._signRpc("reopen_review","Review reopened");
   },
 
   async createReview(){
@@ -3989,6 +4150,7 @@ window.DB = {
     const mgrName=mgr?(mgr.full_name||mgrEmail):mgrEmail;
     const fresh=freshState();
     fresh.meta={empName:name, empRole:"", date:"", mgrName:mgrName};
+    fresh.signoff={empEmail:email, mgrEmail:mgrEmail};
     const row={ owner:this.user.id, employee_name:name, employee_email:email,
       manager_name:mgrName, manager_email:mgrEmail, status:"Open", state:fresh };
     const { data, error } = await this.client.from(this.table).insert(row).select().single();
@@ -4021,7 +4183,8 @@ window.DB = {
   scheduleSave(){ clearTimeout(this.saveTimer); this.setPill("Saving…",true);
     this.saveTimer=setTimeout(()=>{ this.saveTimer=null; this.flushSave(); },800); },
   async flushSave(){
-    if(!this.currentId) return;
+    if(!this.currentId) return false;
+    if(!this.canEditCurrent) return false;   // locked / signed — the server would refuse anyway
     S._editor=this.sessionId;
     const patch={ state:S, employee_name:(S.meta&&S.meta.empName)||"",
       review_date:(S.meta&&S.meta.date)?S.meta.date:null };
@@ -4031,10 +4194,13 @@ window.DB = {
       if(data&&data.updated_at) this._lastAppliedAt=data.updated_at;
       try{localStorage.setItem("sdi_cloud_cache_"+this.currentId,JSON.stringify(S));}catch(e){}
       this.setPill("Saved ✓");
+      return true;
     }catch(e){
       console.warn("Cloud save failed:",e);
       try{localStorage.setItem("sdi_cloud_cache_"+this.currentId,JSON.stringify(S));}catch(_){}
+      if(/signed off|locked|sign-off/i.test(e.message||"")){ this.refreshCurrent(); return false; }  // the other person just signed
       this.setPill("⚠ Offline — cached locally",false,true);
+      return false;
     }
   },
 
@@ -4044,8 +4210,9 @@ window.DB = {
   async poll(){
     if(!this.currentId || document.hidden) return;
     try{
-      const { data, error } = await this.client.from(this.table).select("updated_at,state").eq("id",this.currentId).maybeSingle();
+      const { data, error } = await this.client.from(this.table).select("*").eq("id",this.currentId).maybeSingle();
       if(error||!data) return;
+      this.syncRow(data);
       if(data.updated_at===this._lastAppliedAt) return;
       const st=data.state||{};
       if(st._editor && st._editor===this.sessionId){ this._lastAppliedAt=data.updated_at; return; } // my own save
@@ -4068,7 +4235,9 @@ window.DB = {
     const { data, error } = await this.client.from(this.table).select("*").eq("id",this.currentId).maybeSingle();
     if(error||!data){ this.setPill("⚠ Couldn't refresh",false,true); return; }
     this._pendingRemote=null;
+    this.updateRow(data);
     this.applyRemote(data.state||{}, data.updated_at);
+    this.applyLock(data);
   },
 
   /* ---- org chart / reporting structure ---- */
@@ -4138,7 +4307,11 @@ window.DB = {
     if(error){ this.teamErr("Couldn't remove: "+error.message); return; }
     await this.loadOrg(); this.renderTeam(); this.refreshNewReviewOptions();
   },
-  applyReadonly(on){ document.body.classList.toggle("ro-mode",!!on); },
+  applyReadonly(on,msg){
+    document.body.classList.toggle("ro-mode",!!on);
+    const t=document.getElementById("ro-banner-text");
+    if(t) t.textContent=msg||"👁 View only — you can see this review, but only the employee and their direct line manager can make changes.";
+  },
 
   /* ---- misc UI ---- */
   useLocalMode(){ this.stopPoll(); this.mode="local"; this.hideGate();
@@ -4162,7 +4335,7 @@ window.DB = {
 
 /* Repaint the whole UI from S (used after loading/switching a shared review). */
 function renderAll(){
-  [initResponses,buildSidebar,buildHome,buildSections,buildCfoKpis,restoreCfoNote,restoreMeta,loadPrep]
+  [initResponses,buildSidebar,buildHome,buildSections,buildCfoKpis,restoreCfoNote,restoreMeta,restoreSignoff,loadPrep]
     .forEach(fn=>{try{fn();}catch(e){console.warn(e);}});
   try{const ce=document.getElementById("mgr-commitment");if(ce)ce.value=S.mgrCommitment||"";}catch(e){}
   try{["prep-q1","prep-q2","prep-q3"].forEach((id,i)=>{const el=document.getElementById(id);if(el)el.value=(S.prep&&S.prep["q"+(i+1)])||"";});}catch(e){}
@@ -4176,7 +4349,7 @@ function freshState(){
   return { ratings:{}, wb:{}, trendHistory:[], prev:{}, prevRatings:{}, responses:{},
     qsliders:{}, qratings:{}, qtrs:{}, cfo:{}, cfoNote:"",
     actions:[{text:"",owner:"",ownerType:"",date:"",source:"",status:"open"}],
-    meta:{empName:"",empRole:"",date:"",mgrName:""},
+    meta:{empName:"",empRole:"",date:"",mgrName:""}, signoff:{},
     carryForward:[], mgrCommitment:"", prep:{}, reflSelf:{}, rc:{}, reflNote:"" };
 }
 
@@ -4276,6 +4449,7 @@ function showTab(tab){
     else if(tab==="flexwork") showFlexWork();
     else if(tab==="dse") showDse();
     else if(tab==="followup") showFollowup();
+    else if(tab==="history") showHistory();
   }
   try{ window.scrollTo(0,0); }catch(e){}
 }
@@ -4489,6 +4663,71 @@ HR.buildFollowup = function(){
     +`<div style="margin-bottom:12px;"><button class="hr-btn ghost" onclick="HR.buildFollowup()">↻ Refresh</button></div>`
     +`<div class="doc-card">${rows}</div></div>`;
 };
+/* ---------- 1-2-1 History (signed-off, locked reviews) ---------- */
+async function showHistory(){ hrShow("page-history","history"); await HR.buildHistory(); }
+HR._histEmp=null;
+// Overall rating (avg of section + KPI stars) and wellbeing index, as used on the summary page.
+HR.reviewScores = function(st){
+  st=st||{}; const r=st.ratings||{};
+  const stars=SECTIONS.map((_,i)=>(r[i]||{}).stars||0).filter(x=>x>0);
+  const kpi=(r.kpi||{}).stars||0; if(kpi>0) stars.push(kpi);
+  const avg=stars.length?+(stars.reduce((a,b)=>a+b,0)/stars.length).toFixed(1):null;
+  const wv=[]; for(let i=0;i<5;i++){ const q=(st.qratings||{})["0_"+i]; const v=q==="struggling"?1:q==="good"?2:q==="great"?3:null; if(v) wv.push(v); }
+  const wb=wv.length?+(wv.reduce((a,b)=>a+b,0)/wv.length).toFixed(2):null;
+  return {avg,wb};
+};
+HR.pickHistory = function(e){ HR._histEmp=e; HR.buildHistory(); };
+HR.buildHistory = async function(){
+  const el=document.getElementById("page-history"); if(!el) return; if(HR.needCloud(el)) return;
+  el.innerHTML=`<div class="doc-card">Loading…</div>`;
+  await DB.loadReviews();
+  const done=DB.items.filter(r=>DB.signState(r).complete).map(r=>{
+    let st={}; try{ st=(typeof r.state==="string")?JSON.parse(r.state||"{}"):(r.state||{}); }catch(e){}
+    const when=(st.signoff&&st.signoff.dateAgreed)||r.review_date||r.completed_at||"";
+    return Object.assign({_st:st,_when:String(when).slice(0,10)},HR.reviewScores(st),{row:r});
+  });
+  const byEmp={}; done.forEach(d=>{ const e=(d.row.employee_email||"").toLowerCase(); (byEmp[e]=byEmp[e]||[]).push(d); });
+  const emails=Object.keys(byEmp).sort((a,b)=>DB.personName(a).localeCompare(DB.personName(b)));
+  const head=HR.hero("Service Desk Institute® · 1-2-1 History","1-2-1 History","Signed-off 1-2-1 reviews. Once the employee and line manager have both signed, a review is locked and kept here as a permanent record.","","");
+  if(!emails.length){
+    el.innerHTML=`<div class="sdi-doc">${head}<div class="hr-note" style="margin-top:12px;">No signed-off reviews yet. Open a review, go to <b>View summary</b>, and use the Sign-off section once it is finished.</div></div>`;
+    return;
+  }
+  let emp=HR._histEmp; if(!emp||!byEmp[emp]) emp=byEmp[DB.myEmail]?DB.myEmail:emails[0];
+  HR._histEmp=emp;
+  const list=byEmp[emp].slice().sort((a,b)=>(a._when||"").localeCompare(b._when||""));   // oldest → newest
+  const sel=emails.length>1?`<select class="hr-sel" onchange="HR.pickHistory(this.value)">${emails.map(e=>`<option value="${DB.esc(e)}" ${e===emp?"selected":""}>${DB.esc(DB.personName(e))}${e===DB.myEmail?" (you)":""} — ${byEmp[e].length}</option>`).join("")}</select>`:"";
+  const rated=list.filter(d=>d.avg!=null);
+  const latest=rated.length?rated[rated.length-1].avg:null;
+  const mean=rated.length?(rated.reduce((a,d)=>a+d.avg,0)/rated.length).toFixed(1):null;
+  const stats=`<div class="hist-stats">
+    <div class="hist-stat"><div class="lbl">Signed-off reviews</div><div class="val">${list.length}</div></div>
+    <div class="hist-stat"><div class="lbl">Latest overall rating</div><div class="val">${latest!=null?latest+"/5":"—"}</div></div>
+    <div class="hist-stat"><div class="lbl">Average across history</div><div class="val">${mean!=null?mean+"/5":"—"}</div></div></div>`;
+  let prev=null;
+  const rows=list.map(d=>{
+    const t=d.avg!=null?getTrendLight(d.avg):null;
+    let chg="—";
+    if(d.avg!=null && prev!=null){ const x=+(d.avg-prev).toFixed(1); chg=x>0?`<span style="color:#15803d;font-weight:700;">▲ ${x}</span>`:x<0?`<span style="color:#dc2626;font-weight:700;">▼ ${Math.abs(x)}</span>`:`<span style="color:var(--muted);">＝</span>`; }
+    if(d.avg!=null) prev=d.avg;
+    const wb=d.wb!=null?getWellbeingBand(d.wb):null;
+    const r=d.row;
+    return {html:`<tr>
+      <td><b>${DB.esc(d._when?DB.fmtDate(d._when):"—")}</b></td>
+      <td>${DB.esc(r.manager_name||DB.personName(r.manager_email)||"—")}</td>
+      <td>${t?`${t.light} <b>${d.avg}/5</b> <span style="color:var(--muted);font-size:11px;">${DB.esc(t.label)}</span>`:"—"}</td>
+      <td>${chg}</td>
+      <td>${wb?`${wb.light} ${DB.esc(wb.label.split(" — ")[0])}`:"—"}</td>
+      <td style="font-size:11.5px;color:var(--muted);">🔒 ${DB.esc(DB.fmtDate(r.completed_at))}</td>
+      <td><button class="hr-btn ghost" style="padding:4px 10px;" onclick="DB.openReview('${DB.esc(String(r.id))}')">Open</button></td></tr>`};
+  }).reverse().map(x=>x.html).join("");   // newest first
+  el.innerHTML=`<div class="sdi-doc">${head}
+    <div class="hr-head" style="margin-top:14px;"><h1 style="font-size:15pt;">${DB.esc(DB.personName(emp))}</h1>${sel}</div>
+    ${stats}
+    <div class="hist-wrap"><table class="hist-tbl"><thead><tr><th>Review date</th><th>Reviewer</th><th>Overall rating</th><th>Change</th><th>Wellbeing</th><th>Signed off</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="hr-note" style="margin-top:10px;">Signed-off reviews open read-only. “Change” compares each review’s overall rating with the previous one.</div></div>`;
+};
+
 async function showSelfCert(){ hrShow("page-selfcert","selfcert"); await HR.buildSelfCert(); }
 HR.buildSelfCert = async function(){
   const el=document.getElementById("page-selfcert"); if(!el) return; if(HR.needCloud(el)) return;

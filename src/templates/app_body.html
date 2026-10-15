@@ -1,0 +1,898 @@
+<!-- ===== STATUS PILL (shown once a shared review is open) ===== -->
+<div id="auth-pill">
+  <span class="auth-pill-dot"></span>
+  <span id="auth-pill-text">Cloud</span>
+  <button onclick="DB.refreshCurrent()">↻ Latest</button>
+  <button onclick="DB.backToReviews()">⇄ Reviews</button>
+</div>
+<!-- ===== ADMIN: MANAGE TEAM / REPORTING STRUCTURE ===== -->
+<div id="team-gate">
+  <div class="team-card">
+    <h2>Manage team &amp; reporting structure</h2>
+    <div class="team-sub">Admin only. Add people and set who they report to — access to 1-2-1s follows this structure automatically (a person's line manager and one level above can view; only the direct line manager can edit). New people get a one-time password to pass on; they choose their own password when they first sign in.</div>
+    <div id="team-err" class="auth-err"></div>
+    <div id="team-ok" class="auth-ok"></div>
+    <div class="auth-sec-label" style="margin-top:0;">Add or update a person</div>
+    <div class="team-row">
+      <input id="team-name" type="text" placeholder="Full name">
+      <input id="team-email" type="email" placeholder="Work email">
+    </div>
+    <div class="team-row">
+      <select id="team-role"><option value="member">Member</option><option value="admin">Admin (sees all)</option></select>
+      <select id="team-mgr"><option value="">Reports to… (none = top)</option></select>
+    </div>
+    <button class="team-btn" onclick="DB.invite()">+ Save person</button>
+    <div id="team-temp" class="team-temp" hidden></div>
+    <div class="auth-sec-label">Current team</div>
+    <div class="team-list" id="team-list"></div>
+    <div class="auth-foot"><button class="auth-link" onclick="DB.closeTeam()">Close</button></div>
+  </div>
+</div>
+<div id="topbar">
+  <div class="tb-brand"><span class="tb-dot"></span>SDI HR</div>
+  <button class="topbar-tab active" data-tab="handbook" onclick="showTab('handbook')">📖 Staff Handbook</button>
+  <button class="topbar-tab" data-tab="selfcert" onclick="showTab('selfcert')">📄 Self-Certification</button>
+  <button class="topbar-tab" data-tab="flexwork" onclick="showTab('flexwork')">🕒 Flexible Working</button>
+  <button class="topbar-tab" data-tab="dse" onclick="showTab('dse')">🖥 DSE Self-Assessment</button>
+  <button class="topbar-tab" data-tab="expenses" onclick="showTab('expenses')">💷 Expense Claim</button>
+  <button class="topbar-tab" data-tab="jd" onclick="showTab('jd')">📋 Job Description</button>
+  <button class="topbar-tab" data-tab="review" onclick="showTab('review')">1-2-1 Review</button>
+  <button class="topbar-tab" data-tab="history" onclick="showTab('history')">📚 1-2-1 History</button>
+  <button class="topbar-tab" data-tab="followup" onclick="showTab('followup')">🔄 Follow-Up to 1-2-1</button>
+  <div class="tb-spacer"></div>
+  <button class="topbar-tab tb-admin" id="tb-team" style="display:none;" onclick="DB.openTeam()">⚙ Manage Team</button>
+  <a class="topbar-tab" href="password.php" style="text-decoration:none;">🔑 Password</a>
+  <button class="topbar-tab" onclick="DB.signOut()">Sign out</button>
+</div>
+<div class="shell">
+
+<nav class="sidebar" id="sidebar">
+  <div class="sb-logo">
+    <div class="sb-brand">Service Desk Institute<sup style="font-size:9px;vertical-align:super;">®</sup></div>
+    <div class="sb-sub">1-2-1 Review</div>
+    <div style="font-size:9px;color:rgba(255,255,255,.25);margin-top:4px;letter-spacing:.06em;">Version 216</div>
+  </div>
+  <div class="sb-person">
+    <div style="margin-bottom:10px;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:3px;">Employee</div>
+      <input id="sb-emp-name" type="text" placeholder="Full name" oninput="updateMeta()" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.2);color:#fff;font-size:13px;font-weight:600;width:100%;outline:none;padding:2px 0;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:3px;">Job Title</div>
+      <input id="sb-emp-role" type="text" placeholder="Role" oninput="updateMeta()" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.75);font-size:11.5px;width:100%;outline:none;padding:2px 0;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:3px;">Date</div>
+        <input id="sb-date" type="date" oninput="updateMeta()" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);font-size:11px;width:100%;outline:none;padding:2px 0;color-scheme:dark;">
+      </div>
+      <div>
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.3);margin-bottom:3px;">Manager</div>
+        <input id="sb-mgr-name" type="text" placeholder="Name" oninput="updateMeta()" style="background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);font-size:11px;width:100%;outline:none;padding:2px 0;">
+      </div>
+    </div>
+  </div>
+  <div class="sb-nav" id="sb-nav"><div class="nav-item" onclick="showHow()" data-idx="how"><span>How to use</span></div><div class="nav-item active" onclick="showGoals()" data-idx="goals"><span>SDI® Goals 2026</span></div><div class="nav-item" onclick="showHome()" data-idx="home"><span>Overview</span></div><div class="nav-item" onclick="showSection(0)" data-idx="0"><span>Check-in &amp; Wellbeing</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(1)" data-idx="1"><span>Reflection &amp; Achievements</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(2)" data-idx="2"><span>Role Clarity &amp; Day-to-Day</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(3)" data-idx="3"><span>Goals, Strategy &amp; Belonging</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showKpi()" data-idx="kpi"><span>Key Performance Indicators</span></div><div class="nav-item" onclick="showSection(4)" data-idx="4"><span>Growth &amp; Development</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(5)" data-idx="5"><span>Relationships &amp; Communication</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(6)" data-idx="6"><span>Resource &amp; Future Planning</span><span class="nav-dot "></span></div><div class="nav-item" onclick="showSection(7)" data-idx="7"><span>Feedback &amp; Close</span><span class="nav-dot "></span></div><div style="padding:8px 20px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.28);">HR &amp; Documents</div><div class="nav-item" onclick="showHandbook()" data-idx="handbook"><span>📖 Staff Handbook</span></div><div class="nav-item" onclick="showJD()" data-idx="jd"><span>📋 Job Description</span></div><div class="nav-item" onclick="showSelfCert()" data-idx="selfcert"><span>📄 Self-Certification</span></div><div class="nav-item" onclick="showExpenses()" data-idx="expenses"><span>💷 Expense Claim</span></div></div>
+  <div id="save-ind" class="save-ind">✓ Saved</div>
+  <button class="sb-btn" onclick="showSummary()">View summary →</button>
+  <button class="sb-reset" onclick="clearState()">↺ Reset review</button>
+</nav>
+
+<main class="main">
+  <div id="ro-banner"><span id="ro-banner-text">👁 View only — you can see this review, but only the employee and their direct line manager can make changes.</span></div>
+
+  <!-- 2026 GOALS OPENER -->
+  <div id="page-goals" class="page active">
+    <div class="gp-card">
+
+      <!-- HERO: split panel -->
+      <div class="gp-hero" style="display:grid;grid-template-columns:1fr auto;">
+
+        <!-- Left: title & branding -->
+        <div class="gp-hero-left">
+          <div class="gp-wordmark">
+            <div class="gp-wordmark-bar"></div>
+            <div class="gp-wordmark-text">
+              <span>Service Desk Institute<sup>®</sup></span>
+              The Leading Authority in IT Service &amp; Support
+            </div>
+          </div>
+          <div class="gp-hero-title">Our Goals</div>
+          <div class="gp-hero-sub">Eight goals that shape how we grow, serve and show up — for our customers, our community, and <strong>each other</strong>.</div>
+        </div>
+
+        <!-- Right: year box -->
+        <div style="display:flex;align-items:center;justify-content:center;padding:40px 56px;background:var(--red);border-left:none;">
+          <div style="text-align:center;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.6);margin-bottom:4px;">Year</div>
+            <div style="font-size:64pt;font-weight:700;color:#fff;letter-spacing:-3px;line-height:1.0;">2026</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- GOALS GRID -->
+      <div class="gp-goals-wrap">
+        <div class="gp-goals-header">
+          <div class="gp-goals-heading">Eight goals for 2026</div>
+          <div class="gp-goals-count">The Leading Authority in IT Service &amp; Support</div>
+        </div>
+
+        <div class="gp-goals-grid">
+          <div class="gp-goal" style="border-color:#1a56db30;"><div class="gp-num" style="background:#01376B;">1</div><div class="gp-goal-n" style="color:#1a56db;">Goal 01 · Authority</div><div class="gp-goal-title" style="color:#1a56db;">Strengthen SDI®'s position as the leading "Authority" in IT Service and Support</div><div class="gp-goal-tag" style="background:#dbeafe;color:#1a56db;">🏛 AUTHORITY</div></div>
+          <div class="gp-goal" style="border-color:#7c3aed30;"><div class="gp-num" style="background:#1C3562;">2</div><div class="gp-goal-n" style="color:#7c3aed;">Goal 02 · Influence</div><div class="gp-goal-title" style="color:#7c3aed;">Be a Thought Leader</div><div class="gp-goal-tag" style="background:#ede9fe;color:#7c3aed;">💡 Influence</div></div>
+          <div class="gp-goal" style="border-color:#0891b230;"><div class="gp-num" style="background:#383259;">3</div><div class="gp-goal-n" style="color:#0891b2;">Goal 03 · Customer</div><div class="gp-goal-title" style="color:#0891b2;">Enhance Customer Success Creating Value and Exceptional Digital &amp; Human Experiences</div><div class="gp-goal-tag" style="background:#cffafe;color:#0891b2;">🤝 Customer</div></div>
+          <div class="gp-goal" style="border-color:#0284c730;"><div class="gp-num" style="background:#533050;">4</div><div class="gp-goal-n" style="color:#0284c7;">Goal 04 · Product</div><div class="gp-goal-title" style="color:#0284c7;">Customer-Oriented Product Development</div><div class="gp-goal-tag" style="background:#e0f2fe;color:#0284c7;">🚀 Product</div></div>
+        </div>
+
+        <div class="gp-goals-grid" style="margin-top:10px;">
+          <div class="gp-goal" style="border-color:#05966930;"><div class="gp-num" style="background:#6E2E48;">5</div><div class="gp-goal-n" style="color:#059669;">Goal 05 · Community</div><div class="gp-goal-title" style="color:#059669;">Increase Community Engagement</div><div class="gp-goal-tag" style="background:#d1fae5;color:#059669;">🌍 Community</div></div>
+          <div class="gp-goal" style="border-color:#d9770630;"><div class="gp-num" style="background:#892C3F;">6</div><div class="gp-goal-n" style="color:#d97706;">Goal 06 · Data</div><div class="gp-goal-title" style="color:#d97706;">Grow and Improve the Quality of Our Data</div><div class="gp-goal-tag" style="background:#fef3c7;color:#d97706;">📊 Data</div></div>
+          <div class="gp-goal" style="border-color:#ea580c30;"><div class="gp-num" style="background:#A52936;">7</div><div class="gp-goal-n" style="color:#ea580c;">Goal 07 · Revenue</div><div class="gp-goal-title" style="color:#ea580c;">Exceed Revenue &amp; Gross Profit Targets</div><div class="gp-goal-tag" style="background:#fed7aa;color:#ea580c;">💰 Revenue</div></div>
+          <div class="gp-goal" style="border-color:#be185d30;"><div class="gp-num" style="background:#C0272D;">8</div><div class="gp-goal-n" style="color:#be185d;">Goal 08 · People First</div><div class="gp-goal-title" style="color:#be185d;">Be Brilliant Together</div><div class="gp-goal-tag" style="background:#fce7f3;color:#be185d;">⭐ People</div></div>
+        </div>
+      </div>
+
+      <!-- FINANCIAL CONTEXT STRIP -->
+      <div style="margin:0 32px 0;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);background:#f8fafc;">
+      <div style="display:flex;justify-content:center;gap:0;">
+        <div style="padding:18px 48px;display:flex;flex-direction:column;align-items:center;gap:3px;border-right:1px solid var(--border);">
+          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);">Revenue</div>
+          <div style="font-size:22pt;font-weight:700;color:var(--navy);letter-spacing:-.5px;line-height:1.1;">£2,503,011</div>
+          <div style="font-size:11px;color:var(--muted);">2026 target</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;width:100%;">
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q1</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--navy);">£869,219</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q2</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--navy);">£544,928</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q3</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--navy);">£480,647</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q4</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--navy);">£608,217</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:18px 48px;display:flex;flex-direction:column;align-items:center;gap:3px;">
+          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);">Gross Profit <span style="font-weight:400;text-transform:none;letter-spacing:0;">before MARKETING</span></div>
+          <div style="font-size:22pt;font-weight:700;color:var(--red);letter-spacing:-.5px;line-height:1.1;">£1,655,410</div>
+          <div style="font-size:11px;color:var(--muted);">2026 target</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;width:100%;">
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q1</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--red);">£460,750</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q2</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--red);">£407,667</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q3</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--red);">£344,954</div>
+            </div>
+            <div style="text-align:center;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 8px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q4</div>
+              <div style="font-size:11.5px;font-weight:700;color:var(--red);">£442,039</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      </div>
+      <!-- VISION BANNER -->
+      <div class="gp-vision" style="justify-content:center;">
+        <div class="gp-vision-quote-wrap" style="text-align:center;">
+          <div class="gp-vision-quote">Inspiring service desks to be brilliant</div>
+        </div>
+      </div>
+
+      <!-- FOOTER CTA -->
+      <div class="gp-footer">
+        <div class="gp-footer-note">
+          These goals shape every conversation in this review. As you work through each section, consider how your contribution connects to them — everything we do leads back to <strong>Goal 8: Be Brilliant Together</strong>.
+        </div>
+        <button class="gp-cta gp-cta-red" onclick="showHome()">Start review →</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- HOW TO USE -->
+  <div id="page-how" class="page">
+    <div style="background:var(--navy);border-radius:var(--radius);padding:28px 32px;margin-bottom:20px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.35);margin-bottom:8px;">Service Desk Institute®</div><div style="font-size:22pt;font-weight:700;color:#fff;letter-spacing:-.4px;line-height:1.1;">How to use this review</div><div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:10px;">One file passes between three people. Follow these six steps in order.</div></div>
+
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px 18px;margin-bottom:18px;font-size:12.5px;color:#92400e;line-height:1.6;"><strong>Golden rule:</strong> Everything lives inside the HTML file. Every time someone clicks <strong>⬇ Export &amp; Share</strong>, all data is baked into the downloaded file. Nothing is stored on a server. <strong>The file is the record.</strong></div>
+
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#1e3a5f;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">1</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Manager</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x1F4CB; Manager sets up the file</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Open in Chrome. On the <strong>Overview</strong> page, fill in the employee's name, job title, and date. Click <strong>⬇ Export &amp; Share</strong> to download the prepared file.</div></div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#1e3a5f;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">2</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Manager → Employee</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x1F4E8; Send to the employee</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Email or Teams the <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:11px;">SDI_121_Review_Name.html</code> file. No account needed — they just open it in Chrome.</div></div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#2563eb;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">3</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Employee</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x270F;&#xFE0F; Employee completes their sections</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Opens the file in Chrome and completes the <strong style="color:#2563eb;">blue Employee fields</strong> and emoji buttons. Clicks <strong>⬇ Export &amp; Share</strong> and sends back.</div></div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#1e3a5f;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">4</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Manager</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x1F454; Manager completes their sections</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Open the returned file — employee responses are already inside. Add <strong>Manager notes</strong>, <strong>star ratings</strong>, and complete the <strong>KPI section</strong>.</div></div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#0e7490;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">5</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Manager &amp; Employee</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x1F4CA; Review the summary together</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Click <strong>View summary →</strong> in the sidebar for wellbeing indicators, section ratings, comparison, agreed actions and manager reflection.</div></div>
+      <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;margin-bottom:14px;"><div style="background:#1e3a5f;padding:16px 22px;display:flex;align-items:center;gap:14px;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">6</div><div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin-bottom:2px;">Manager</div><div style="font-size:14px;font-weight:700;color:#fff;">&#x1F4BE; Save the final record</div></div></div><div style="padding:14px 22px;font-size:13px;color:#374151;line-height:1.7;">Click <strong>⬇ Export &amp; Share</strong> one final time. Rename with the date e.g. <code style="background:#f3f4f6;padding:1px 5px;border-radius:3px;font-size:11px;">SDI_121_Review_Jane_June2026.html</code>.</div></div>
+  </div>
+<div id="page-home" class="page">
+    <div class="home-header">
+      <div class="home-header-left">
+        <h1>1-2-1 Review</h1>
+        <p>8 sections · work through each in order · rate as you go</p>
+      </div>
+    </div>
+    <div class="home-grid" id="home-grid"><div class="hcard " onclick="showSection(0)">
+      <div class="hcard-icon">🌱</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 1</div>
+        <div class="hcard-title">Check-in &amp; Wellbeing</div>
+        <div class="hcard-desc">The human opener — no agenda. A chance to understand how the employee is really…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(1)">
+      <div class="hcard-icon">⭐</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 2</div>
+        <div class="hcard-title">Reflection &amp; Achievements</div>
+        <div class="hcard-desc">Strengths before strategy. Recognising what someone has done well builds confide…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(2)">
+      <div class="hcard-icon">💼</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 3</div>
+        <div class="hcard-title">Role Clarity &amp; Day-to-Day</div>
+        <div class="hcard-desc">People do their best work when they know what's expected. This section establish…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(3)">
+      <div class="hcard-icon">🎯</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 4</div>
+        <div class="hcard-title">Goals, Strategy &amp; Belonging</div>
+        <div class="hcard-desc">With role clarity established, we connect to the bigger picture. This section ex…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(4)">
+      <div class="hcard-icon">🚀</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 5</div>
+        <div class="hcard-title">Growth &amp; Development</div>
+        <div class="hcard-desc">Investing in people's growth is one of the most powerful ways to retain talent.…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(5)">
+      <div class="hcard-icon">💬</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 6</div>
+        <div class="hcard-title">Relationships &amp; Communication</div>
+        <div class="hcard-desc">Strong communication underpins everything. This section is deliberately two-way…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(6)">
+      <div class="hcard-icon">🏗️</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 7</div>
+        <div class="hcard-title">Resource &amp; Future Planning</div>
+        <div class="hcard-desc">The people doing the work every day have the clearest view of where the gaps are…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div><div class="hcard " onclick="showSection(7)">
+      <div class="hcard-icon">📣</div>
+      <div style="flex:1;min-width:0;">
+        <div class="hcard-num">Section 8</div>
+        <div class="hcard-title">Feedback &amp; Close</div>
+        <div class="hcard-desc">The employee's open floor — a space to raise anything that hasn't come up elsewh…</div>
+        <div class="hcard-stars"><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span><span class="e">★</span></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- SECTIONS -->
+  <div id="page-sections" class="page">
+    <div id="sec-container"><div id="sec-0" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>🌱 Check-in &amp; Wellbeing</h2><span class="sec-n">Section 1 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">The human opener — no agenda. A chance to understand how the employee is really feeling. Listen more than you speak.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">3.1.2</span><span class="sda-tag-name">Wellbeing in a Service Desk environment</span></span><span class="sda-tag"><span class="sda-tag-ref">3.1.4–3.1.5</span><span class="sda-tag-name">Work-life balance</span></span><span class="sda-tag"><span class="sda-tag-ref">3.4.1</span><span class="sda-tag-name">Emotional resilience</span></span><span class="sda-tag"><span class="sda-tag-ref">3.4.2–3.4.4</span><span class="sda-tag-name">Signs of positive &amp; negative stress</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">6.7</span><span class="sdc-tag-name">Work-life Blend</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.9</span><span class="sdc-tag-name">Workplace Wellbeing</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard defines wellbeing, work-life balance and emotional resilience as professional competencies — not peripheral concerns. Including this conversation in every review reflects a commitment to upholding these principles internally, not just advocating for them externally. This section is evidence of that commitment.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">How are you doing?</div><button onclick="addActionFromQ(&#39;How are you doing?&#39;,&#39;Check-in &amp; Wellbeing&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;0_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;0_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-0_0&#39;)"><span class="q-slider-val emp-val" id="qsev-0_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;0_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;0_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">How would you rate your work-life balance?</div><button onclick="addActionFromQ(&#39;How would you rate your work-life balance?&#39;,&#39;Check-in &amp; Wellbeing&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;0_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;0_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-0_1&#39;)"><span class="q-slider-val emp-val" id="qsev-0_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;0_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;0_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Have you been working beyond your contracted hours recently?</div><div class="q-sub">If yes, note roughly how many hours a week.</div><button onclick="addActionFromQ(&#39;Have you been working beyond your contracted hours recently?&#39;,&#39;Check-in &amp; Wellbeing&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;0_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;0_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-0_2&#39;)"><span class="q-slider-val emp-val" id="qsev-0_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;0_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;0_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Does your work feel meaningful to you right now?</div><button onclick="addActionFromQ(&#39;Does your work feel meaningful to you right now?&#39;,&#39;Check-in &amp; Wellbeing&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;0_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;0_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-0_3&#39;)"><span class="q-slider-val emp-val" id="qsev-0_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;0_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;0_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How happy are you feeling right now?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,0,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-0">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">How manageable is your workload today?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,0,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-0">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="0" data-v="1" onclick="setRating(0,1)">★</span><span class="star " data-si="0" data-v="2" onclick="setRating(0,2)">★</span><span class="star " data-si="0" data-v="3" onclick="setRating(0,3)">★</span><span class="star " data-si="0" data-v="4" onclick="setRating(0,4)">★</span><span class="star " data-si="0" data-v="5" onclick="setRating(0,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(0,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showHome()">← Overview</button><div class="pips" id="pips-0"><div class="pip cur"></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(1)">Next: Reflection &amp; Achievements →</button></div>
+    </div><div id="sec-1" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>⭐ Reflection &amp; Achievements</h2><span class="sec-n">Section 2 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;"><span style="display:inline-block;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;vertical-align:middle;">EVP</span>Strengths before strategy. Recognising what someone has done well builds confidence and creates a positive foundation before any evaluative conversation. This is also where EVP behaviours are explored.<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"><span class="evp-pill">Commit to our brand &amp; values</span><span class="evp-pill">Value each other</span><span class="evp-pill">Be proactive and forward thinking</span><span class="evp-pill">Support &amp; inspire each other</span><span class="evp-pill">Care</span><span class="evp-pill">Have respect</span><span class="evp-pill">Be trusting</span><span class="evp-pill">Be professional</span><span class="evp-pill">Contribute to a positive culture</span><span class="evp-pill">Be open and honest</span></div></div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">1.3.5–1.3.7</span><span class="sda-tag-name">Service Desk values — beliefs &amp; behaviours</span></span><span class="sda-tag"><span class="sda-tag-ref">1.5.1</span><span class="sda-tag-name">Personal accountability</span></span><span class="sda-tag"><span class="sda-tag-ref">1.6.2–1.6.3</span><span class="sda-tag-name">Service attitude &amp; its impact</span></span><span class="sda-tag"><span class="sda-tag-ref">1.7.3</span><span class="sda-tag-name">SDA role in an effective team</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">3.6</span><span class="sdc-tag-name">Personal Performance Reviews</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.3</span><span class="sdc-tag-name">Employee Happiness</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard defines values as active guides to behaviour and decision-making — not aspirational statements. Holding ourselves to the same expectation means our values should be visible in how we actually work together, not just how we describe ourselves. This conversation is where we test that honestly.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">What's one thing you're proud of since we last met?</div><button onclick="addActionFromQ(&#39;What&#39;s one thing you&#39;re proud of since we last met?&#39;,&#39;Reflection &amp; Achievements&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;1_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;1_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-1_0&#39;)"><span class="q-slider-val emp-val" id="qsev-1_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;1_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;1_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">When did you last feel genuinely recognised for your work — and by whom?</div><button onclick="addActionFromQ(&#39;When did you last feel genuinely recognised for your work — and by whom?&#39;,&#39;Reflection &amp; Achievements&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;1_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;1_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-1_1&#39;)"><span class="q-slider-val emp-val" id="qsev-1_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;1_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;1_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">How have you lived EVP since we last met?</div><button onclick="addActionFromQ(&#39;How have you lived EVP since we last met?&#39;,&#39;Reflection &amp; Achievements&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;1_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;1_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-1_2&#39;)"><span class="q-slider-val emp-val" id="qsev-1_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;1_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;1_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Can you give a specific example of one of those EVP values in action?</div><button onclick="addActionFromQ(&#39;Can you give a specific example of one of those EVP values in action?&#39;,&#39;Reflection &amp; Achievements&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;1_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;1_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-1_3&#39;)"><span class="q-slider-val emp-val" id="qsev-1_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;1_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;1_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there anything you wanted to raise last time but held back from saying?</div><button onclick="addActionFromQ(&#39;Is there anything you wanted to raise last time but held back from saying?&#39;,&#39;Reflection &amp; Achievements&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;1_4&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;1_4&#39;,&#39;emp&#39;,this.value,&#39;qsev-1_4&#39;)"><span class="q-slider-val emp-val" id="qsev-1_4">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;1_4&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;1_4&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How energised do you feel about your work?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,1,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-1">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">How stretched are you feeling day-to-day?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,1,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-1">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="1" data-v="1" onclick="setRating(1,1)">★</span><span class="star " data-si="1" data-v="2" onclick="setRating(1,2)">★</span><span class="star " data-si="1" data-v="3" onclick="setRating(1,3)">★</span><span class="star " data-si="1" data-v="4" onclick="setRating(1,4)">★</span><span class="star " data-si="1" data-v="5" onclick="setRating(1,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(1,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(0)">← Check-in &amp; Wellbeing</button><div class="pips" id="pips-1"><div class="pip "></div><div class="pip cur"></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(2)">Next: Role Clarity &amp; Day-to-Day →</button></div>
+    </div><div id="sec-2" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>💼 Role Clarity &amp; Day-to-Day</h2><span class="sec-n">Section 3 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">People do their best work when they know what's expected. This section establishes role clarity before any goal discussion — there's no point talking about where we're going if someone is unclear about where they stand today.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">1.2.1</span><span class="sda-tag-name">Role of the Service Desk Analyst</span></span><span class="sda-tag"><span class="sda-tag-ref">1.2.2</span><span class="sda-tag-name">Responsibilities of the SDA</span></span><span class="sda-tag"><span class="sda-tag-ref">1.4.1</span><span class="sda-tag-name">Purpose of organisational policies</span></span><span class="sda-tag"><span class="sda-tag-ref">3.1.1</span><span class="sda-tag-name">Performance expectations clarity</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">3.1</span><span class="sdc-tag-name">Role Profiles</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.10</span><span class="sdc-tag-name">Workload Management</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard identifies performance expectations clarity as a key factor in employee experience. Clarity of role and responsibility should never be assumed — checking in on this regularly reflects the standard we set for others and applies it equally to ourselves.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">Do you feel clear on what's expected of you in your role?</div><button onclick="addActionFromQ(&#39;Do you feel clear on what&#39;s expected of you in your role?&#39;,&#39;Role Clarity &amp; Day-to-Day&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;2_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;2_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-2_0&#39;)"><span class="q-slider-val emp-val" id="qsev-2_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;2_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;2_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Has anything about your responsibilities changed since our last review?</div><button onclick="addActionFromQ(&#39;Has anything about your responsibilities changed since our last review?&#39;,&#39;Role Clarity &amp; Day-to-Day&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;2_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;2_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-2_1&#39;)"><span class="q-slider-val emp-val" id="qsev-2_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;2_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;2_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What part of your role energises you most?</div><button onclick="addActionFromQ(&#39;What part of your role energises you most?&#39;,&#39;Role Clarity &amp; Day-to-Day&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;2_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;2_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-2_2&#39;)"><span class="q-slider-val emp-val" id="qsev-2_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;2_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;2_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there anything in your day-to-day that feels harder than it should be?</div><button onclick="addActionFromQ(&#39;Is there anything in your day-to-day that feels harder than it should be?&#39;,&#39;Role Clarity &amp; Day-to-Day&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;2_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;2_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-2_3&#39;)"><span class="q-slider-val emp-val" id="qsev-2_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;2_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;2_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What would make the feedback you receive on your performance even more valuable?</div><button onclick="addActionFromQ(&#39;What would make the feedback you receive on your performance even more valuable?&#39;,&#39;Role Clarity &amp; Day-to-Day&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;2_4&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;2_4&#39;,&#39;emp&#39;,this.value,&#39;qsev-2_4&#39;)"><span class="q-slider-val emp-val" id="qsev-2_4">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;2_4&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;2_4&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How satisfied are you with your role right now?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,2,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-2">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">Does your workload feel appropriate for your role and responsibilities?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,2,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-2">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="2" data-v="1" onclick="setRating(2,1)">★</span><span class="star " data-si="2" data-v="2" onclick="setRating(2,2)">★</span><span class="star " data-si="2" data-v="3" onclick="setRating(2,3)">★</span><span class="star " data-si="2" data-v="4" onclick="setRating(2,4)">★</span><span class="star " data-si="2" data-v="5" onclick="setRating(2,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(2,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(1)">← Reflection &amp; Achievements</button><div class="pips" id="pips-2"><div class="pip "></div><div class="pip "></div><div class="pip cur"></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(3)">Next: Goals, Strategy &amp; Belonging →</button></div>
+    </div><div id="sec-3" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>🎯 Goals, Strategy &amp; Belonging</h2><span class="sec-n">Section 4 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">With role clarity established, we connect to the bigger picture. This section explores alignment with company goals, surfaces blockers early, and asks whether the employee feels their voice genuinely shapes things here.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">1.3.1–1.3.4</span><span class="sda-tag-name">Vision &amp; mission — strategic alignment</span></span><span class="sda-tag"><span class="sda-tag-ref">3.2.1–3.2.2</span><span class="sda-tag-name">Diversity, Equity, Inclusion &amp; Belonging</span></span><span class="sda-tag"><span class="sda-tag-ref">3.3.1</span><span class="sda-tag-name">Challenger Safety</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">6.8</span><span class="sdc-tag-name">Inclusion &amp; Belonging</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.12</span><span class="sdc-tag-name">Challenger Safety</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard defines Challenger Safety as a prerequisite for trust, innovation and continual improvement — and DEIB as foundational to a healthy team culture. This section ensures we are genuinely creating those conditions here, not just advocating for them elsewhere.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">Are there any goals that feel out of reach right now?</div><button onclick="addActionFromQ(&#39;Are there any goals that feel out of reach right now?&#39;,&#39;Goals, Strategy &amp; Belonging&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;3_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;3_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-3_0&#39;)"><span class="q-slider-val emp-val" id="qsev-3_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;3_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;3_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What would need to change to make them achievable?</div><button onclick="addActionFromQ(&#39;What would need to change to make them achievable?&#39;,&#39;Goals, Strategy &amp; Belonging&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;3_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;3_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-3_1&#39;)"><span class="q-slider-val emp-val" id="qsev-3_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;3_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;3_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Do you feel like what you do here makes a difference?</div><button onclick="addActionFromQ(&#39;Do you feel like what you do here makes a difference?&#39;,&#39;Goals, Strategy &amp; Belonging&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;3_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;3_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-3_2&#39;)"><span class="q-slider-val emp-val" id="qsev-3_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;3_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;3_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Do you feel your opinion genuinely influences decisions here?</div><button onclick="addActionFromQ(&#39;Do you feel your opinion genuinely influences decisions here?&#39;,&#39;Goals, Strategy &amp; Belonging&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;3_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;3_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-3_3&#39;)"><span class="q-slider-val emp-val" id="qsev-3_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;3_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;3_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How connected do you feel to our goals?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,3,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-3">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">Does the work volume make goals feel achievable?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,3,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-3">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="3" data-v="1" onclick="setRating(3,1)">★</span><span class="star " data-si="3" data-v="2" onclick="setRating(3,2)">★</span><span class="star " data-si="3" data-v="3" onclick="setRating(3,3)">★</span><span class="star " data-si="3" data-v="4" onclick="setRating(3,4)">★</span><span class="star " data-si="3" data-v="5" onclick="setRating(3,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(3,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(2)">← Role Clarity &amp; Day-to-Day</button><div class="pips" id="pips-3"><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip cur"></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(4)">Next: Growth &amp; Development →</button></div>
+    </div><div id="sec-4" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>🚀 Growth &amp; Development</h2><span class="sec-n">Section 5 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">Investing in people's growth is one of the most powerful ways to retain talent. This section covers career ambitions, learning needs, and readiness for the future — including how the employee feels about new technology and the evolving nature of their role.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">3.1.1</span><span class="sda-tag-name">Personal &amp; career development</span></span><span class="sda-tag"><span class="sda-tag-ref">3.1.3</span><span class="sda-tag-name">Benefits of wellbeing — engagement</span></span><span class="sda-tag"><span class="sda-tag-ref">7.1.4–7.1.5</span><span class="sda-tag-name">AI in ITSM — analyst readiness</span></span><span class="sda-tag"><span class="sda-tag-ref">1.7.4</span><span class="sda-tag-name">Collaboration &amp; skills development</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">3.5</span><span class="sdc-tag-name">Career Development Programme</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.1</span><span class="sdc-tag-name">Personal Development</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.6</span><span class="sdc-tag-name">Career Development Opportunities</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard names personal and career development as core components of a positive employee experience. Investing in people's growth with genuine intent — not just as a process — is how that commitment becomes real and consistent.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">Where would you like to be in your career in the next 6–12 months?</div><button onclick="addActionFromQ(&#39;Where would you like to be in your career in the next 6–12 months?&#39;,&#39;Growth &amp; Development&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;4_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;4_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-4_0&#39;)"><span class="q-slider-val emp-val" id="qsev-4_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;4_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;4_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What does the organisation need to do to help you get there?</div><button onclick="addActionFromQ(&#39;What does the organisation need to do to help you get there?&#39;,&#39;Growth &amp; Development&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;4_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;4_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-4_1&#39;)"><span class="q-slider-val emp-val" id="qsev-4_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;4_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;4_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there something you've been keen to try but haven't had the chance to yet?</div><button onclick="addActionFromQ(&#39;Is there something you&#39;ve been keen to try but haven&#39;t had the chance to yet?&#39;,&#39;Growth &amp; Development&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;4_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;4_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-4_2&#39;)"><span class="q-slider-val emp-val" id="qsev-4_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;4_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;4_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">How confident do you feel about working with new technology and AI tools?</div><button onclick="addActionFromQ(&#39;How confident do you feel about working with new technology and AI tools?&#39;,&#39;Growth &amp; Development&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;4_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;4_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-4_3&#39;)"><span class="q-slider-val emp-val" id="qsev-4_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;4_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;4_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How excited do you feel about your growth here?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,4,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-4">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">Do you have capacity to focus on your development?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,4,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-4">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="4" data-v="1" onclick="setRating(4,1)">★</span><span class="star " data-si="4" data-v="2" onclick="setRating(4,2)">★</span><span class="star " data-si="4" data-v="3" onclick="setRating(4,3)">★</span><span class="star " data-si="4" data-v="4" onclick="setRating(4,4)">★</span><span class="star " data-si="4" data-v="5" onclick="setRating(4,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(4,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(3)">← Goals, Strategy &amp; Belonging</button><div class="pips" id="pips-4"><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip cur"></div><div class="pip "></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(5)">Next: Relationships &amp; Communication →</button></div>
+    </div><div id="sec-5" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>💬 Relationships &amp; Communication</h2><span class="sec-n">Section 6 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">Strong communication underpins everything. This section is deliberately two-way — it asks the employee how they experience communication, and invites the manager to reflect on what they could do better. That mutuality builds trust.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">2.1.1–2.1.3</span><span class="sda-tag-name">Communication — methods &amp; barriers</span></span><span class="sda-tag"><span class="sda-tag-ref">2.3.1–2.3.3</span><span class="sda-tag-name">Active listening &amp; paraphrasing</span></span><span class="sda-tag"><span class="sda-tag-ref">1.7.1–1.7.2</span><span class="sda-tag-name">Teamwork &amp; responsibilities</span></span><span class="sda-tag"><span class="sda-tag-ref">1.8.1–1.8.2</span><span class="sda-tag-name">Relationship management</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">3.12</span><span class="sdc-tag-name">Communication Personalisation</span></span><span class="sdc-tag"><span class="sdc-tag-ref">3.14</span><span class="sdc-tag-name">Promoting Teamwork</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard places communication and active listening among its highest-weighted principles — and defines them as shared responsibilities, not one-sided skills. Making this section two-way, including asking what the manager could do better, is a direct reflection of that.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">How well do you feel we communicate with each other?</div><button onclick="addActionFromQ(&#39;How well do you feel we communicate with each other?&#39;,&#39;Relationships &amp; Communication&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;5_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;5_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-5_0&#39;)"><span class="q-slider-val emp-val" id="qsev-5_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;5_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;5_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there anything you'd like more or less of from me?</div><button onclick="addActionFromQ(&#39;Is there anything you&#39;d like more or less of from me?&#39;,&#39;Relationships &amp; Communication&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;5_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;5_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-5_1&#39;)"><span class="q-slider-val emp-val" id="qsev-5_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;5_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;5_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Do you feel you receive enough feedback on your performance?</div><button onclick="addActionFromQ(&#39;Do you feel you receive enough feedback on your performance?&#39;,&#39;Relationships &amp; Communication&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;5_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;5_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-5_2&#39;)"><span class="q-slider-val emp-val" id="qsev-5_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;5_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;5_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">How useful is the feedback you receive on your performance?</div><button onclick="addActionFromQ(&#39;How useful is the feedback you receive on your performance?&#39;,&#39;Relationships &amp; Communication&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;5_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;5_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-5_3&#39;)"><span class="q-slider-val emp-val" id="qsev-5_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;5_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;5_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How positive do you feel about your working relationships?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,5,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-5">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">Does the way the team works together make your day easier or harder?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,5,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-5">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="5" data-v="1" onclick="setRating(5,1)">★</span><span class="star " data-si="5" data-v="2" onclick="setRating(5,2)">★</span><span class="star " data-si="5" data-v="3" onclick="setRating(5,3)">★</span><span class="star " data-si="5" data-v="4" onclick="setRating(5,4)">★</span><span class="star " data-si="5" data-v="5" onclick="setRating(5,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(5,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(4)">← Growth &amp; Development</button><div class="pips" id="pips-5"><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip cur"></div><div class="pip "></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(6)">Next: Resource &amp; Future Planning →</button></div>
+    </div><div id="sec-6" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>🏗️ Resource &amp; Future Planning</h2><span class="sec-n">Section 7 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">The people doing the work every day have the clearest view of where the gaps are. This section invites the employee to think strategically — providing ground-level insight that directly informs hiring decisions and how the organisation plans ahead.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">3.1.1</span><span class="sda-tag-name">Workload management &amp; employee autonomy</span></span><span class="sda-tag"><span class="sda-tag-ref">3.4.5–3.4.6</span><span class="sda-tag-name">Responsibility to manage stress</span></span><span class="sda-tag"><span class="sda-tag-ref">4.15.3</span><span class="sda-tag-name">Service Desk contribution to continual improvement</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">6.4</span><span class="sdc-tag-name">Employee Engagement</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.5</span><span class="sdc-tag-name">Voice of the Employee</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.11</span><span class="sdc-tag-name">Employee Autonomy &amp; Empowerment</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard identifies workload management and the shared responsibility to address unsustainable pressure as explicit parts of a healthy employee experience. It also recognises that the people closest to the work are the best source of improvement insight — treating every team member as a strategic voice, not just a resource.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">If you could make one hire for the company, what role would have the biggest impact?</div><button onclick="addActionFromQ(&#39;If you could make one hire for the company, what role would have the biggest impact?&#39;,&#39;Resource &amp; Future Planning&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;6_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;6_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-6_0&#39;)"><span class="q-slider-val emp-val" id="qsev-6_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;6_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;6_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Looking 12 months ahead, how do you see your role evolving?</div><button onclick="addActionFromQ(&#39;Looking 12 months ahead, how do you see your role evolving?&#39;,&#39;Resource &amp; Future Planning&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;6_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;6_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-6_1&#39;)"><span class="q-slider-val emp-val" id="qsev-6_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;6_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;6_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What's the one thing that wastes the most time in your week?</div><button onclick="addActionFromQ(&#39;What&#39;s the one thing that wastes the most time in your week?&#39;,&#39;Resource &amp; Future Planning&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;6_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;6_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-6_3&#39;)"><span class="q-slider-val emp-val" id="qsev-6_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;6_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;6_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How optimistic do you feel about future resourcing?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,6,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-6">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">Does current resourcing feel sustainable for you?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,6,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-6">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="6" data-v="1" onclick="setRating(6,1)">★</span><span class="star " data-si="6" data-v="2" onclick="setRating(6,2)">★</span><span class="star " data-si="6" data-v="3" onclick="setRating(6,3)">★</span><span class="star " data-si="6" data-v="4" onclick="setRating(6,4)">★</span><span class="star " data-si="6" data-v="5" onclick="setRating(6,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(6,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(5)">← Relationships &amp; Communication</button><div class="pips" id="pips-6"><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip cur"></div><div class="pip "></div></div><button class="btn btn-navy" onclick="showSection(7)">Next: Feedback &amp; Close →</button></div>
+    </div><div id="sec-7" class="sec-card" style="display:none;">
+      <div class="sec-head"><h2>📣 Feedback &amp; Close</h2><span class="sec-n">Section 8 of 8</span></div>
+      <div style="padding:10px 22px 12px;border-bottom:1px solid var(--border);background:#fafbff;font-size:12.5px;color:var(--muted);line-height:1.6;">The employee's open floor — a space to raise anything that hasn't come up elsewhere, share suggestions, or flag things that need to go further. Ending the review here signals that their voice genuinely matters, and that this is a conversation, not an appraisal.</div>
+      <div class="sda-strip">
+          <div class="sda-strip-header">
+            <span class="sda-strip-title">📋 Alignment to SDI Standard V9.0</span>
+            <span class="sda-strip-sub">This section reflects the following SDI Professional Standard competencies</span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sda">SDA</span>
+            <span class="sda-tag"><span class="sda-tag-ref">3.3.1</span><span class="sda-tag-name">Challenger Safety — open dialogue</span></span><span class="sda-tag"><span class="sda-tag-ref">4.15.3</span><span class="sda-tag-name">Continual improvement through feedback</span></span><span class="sda-tag"><span class="sda-tag-ref">1.1.2</span><span class="sda-tag-name">Service Desk activities — manage feedback &amp; improvement</span></span>
+          </div>
+          <div class="sda-strip-row">
+            <span class="sda-strip-row-label lbl-sdc">SDC</span>
+            <span class="sdc-tag"><span class="sdc-tag-ref">6.5</span><span class="sdc-tag-name">Voice of the Employee</span></span><span class="sdc-tag"><span class="sdc-tag-ref">6.12</span><span class="sdc-tag-name">Challenger Safety</span></span>
+          </div>
+          <div class="sda-strip-reason">The SDI® Standard defines Challenger Safety and continual improvement through feedback as foundational principles — not aspirational ones. Closing every review with an open floor demonstrates those principles in practice, signalling that feedback flows upward and that every person in this team is a contributor to how we improve.</div>
+        </div>
+      <table class="qt">
+        <thead><tr><th style="width:28%">Question</th><th style="width:24%">Employee Response<br><span style="font-weight:400;color:var(--blue);text-transform:none;letter-spacing:0;font-size:10px;">Employee</span></th><th style="width:24%">Manager Response<br><span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px;">(Manager — during or after)</span></th><th style="width:24%">Chair Note<br><span style="font-weight:400;color:var(--ink);text-transform:none;letter-spacing:0;font-size:10px;">Chair</span></th></tr></thead>
+        <tbody><tr><td style="width:28%"><div class="q-text">Are there any escalations you would like to make to the Chair?</div><button onclick="addActionFromQ(&#39;Are there any escalations you would like to make to the Chair?&#39;,&#39;Feedback &amp; Close&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;7_0&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;7_0&#39;,&#39;emp&#39;,this.value,&#39;qsev-7_0&#39;)"><span class="q-slider-val emp-val" id="qsev-7_0">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;7_0&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;7_0&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there anything you've wanted to say today but haven't felt comfortable raising?</div><button onclick="addActionFromQ(&#39;Is there anything you&#39;ve wanted to say today but haven&#39;t felt comfortable raising?&#39;,&#39;Feedback &amp; Close&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;7_1&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;7_1&#39;,&#39;emp&#39;,this.value,&#39;qsev-7_1&#39;)"><span class="q-slider-val emp-val" id="qsev-7_1">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;7_1&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;7_1&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there any feedback you'd like to share — about the team, the business, our culture, or anything else?</div><button onclick="addActionFromQ(&#39;Is there any feedback you&#39;d like to share — about the team, the business, our culture, or anything else?&#39;,&#39;Feedback &amp; Close&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;7_2&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;7_2&#39;,&#39;emp&#39;,this.value,&#39;qsev-7_2&#39;)"><span class="q-slider-val emp-val" id="qsev-7_2">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;7_2&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;7_2&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">Is there anything you'd like me to raise with senior leadership on your behalf?</div><button onclick="addActionFromQ(&#39;Is there anything you&#39;d like me to raise with senior leadership on your behalf?&#39;,&#39;Feedback &amp; Close&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;7_3&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;7_3&#39;,&#39;emp&#39;,this.value,&#39;qsev-7_3&#39;)"><span class="q-slider-val emp-val" id="qsev-7_3">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;7_3&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;7_3&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr><tr><td style="width:28%"><div class="q-text">What's one thing that would make our working relationship even better going forward?</div><button onclick="addActionFromQ(&#39;What&#39;s one thing that would make our working relationship even better going forward?&#39;,&#39;Feedback &amp; Close&#39;)" style="margin-top:7px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:4px;padding:3px 8px;font-size:10.5px;cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor=&#39;var(--red)&#39;;this.style.color=&#39;var(--red)&#39;;" onmouseout="this.style.borderColor=&#39;var(--border)&#39;;this.style.color=&#39;var(--muted)&#39;;">＋ Add as action</button></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-emp">Employee</div><textarea class="resp-area ea" placeholder="Employee to complete…" oninput="setResp(&#39;7_4&#39;,&#39;emp&#39;,this.value)"></textarea><div class="q-slider-wrap"><span class="q-slider-label">Agree 1–5</span><input type="range" min="0" max="5" value="0" step="1" class="emp-range" oninput="setQSlider(&#39;7_4&#39;,&#39;emp&#39;,this.value,&#39;qsev-7_4&#39;)"><span class="q-slider-val emp-val" id="qsev-7_4">—</span></div></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-mgr">Manager</div><textarea class="resp-area ma" placeholder="Manager to complete…" oninput="setResp(&#39;7_4&#39;,&#39;mgr&#39;,this.value)"></textarea></div></td><td style="width:24%"><div class="resp-wrap"><div class="resp-label lbl-pmr">Chair note</div><textarea class="resp-area pa" placeholder="Chair to add notes…" oninput="setResp(&#39;7_4&#39;,&#39;pmr&#39;,this.value)"></textarea></div></td></tr></tbody>
+      </table>
+      <div class="indicators">
+        <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+        
+        <div class="ind-grid"><div class="ind-item"><div class="ind-label">😊 Happiness</div><div class="ind-desc">How comfortable do you feel wrapping up this review?</div><div class="sw"><input type="range" min="0" max="10" value="0" step="1" oninput="setW(&#39;happy&#39;,7,this.value,this.nextElementSibling)"><span class="kv " id="kv-happy-7">—</span></div><div class="ind-target">Track trend over time</div></div><div class="ind-item"><div class="ind-label">⚡ Energy</div><div class="ind-desc">How has your energy been throughout today?</div><div class="sw"><input type="range" min="0" max="5" value="0" step="1" oninput="setW(&#39;workload&#39;,7,this.value,this.nextElementSibling)"><span class="kv " id="kv-workload-7">—</span></div><div class="ind-target">Watch if consistently &lt; 3</div></div></div>
+      </div>
+      
+      <div class="rating-footer"><label>Manager rating:</label><div class="stars"><span class="star " data-si="7" data-v="1" onclick="setRating(7,1)">★</span><span class="star " data-si="7" data-v="2" onclick="setRating(7,2)">★</span><span class="star " data-si="7" data-v="3" onclick="setRating(7,3)">★</span><span class="star " data-si="7" data-v="4" onclick="setRating(7,4)">★</span><span class="star " data-si="7" data-v="5" onclick="setRating(7,5)">★</span></div><input class="rating-note" type="text" placeholder="Add a note for this section…" value="" oninput="setNote(7,this.value)"></div>
+      <div class="nav-btns"><button class="btn btn-ghost" onclick="showSection(6)">← Resource &amp; Future Planning</button><div class="pips" id="pips-7"><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip "></div><div class="pip cur"></div></div><button class="btn btn-red" onclick="showSummary()">View summary →</button></div>
+    </div></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div id="page-summary" class="page" style="width:100%">
+    <div class="sum-hdr">
+      <div>
+        <h1>Review summary</h1>
+        <div class="meta">Employee Name &nbsp;·&nbsp; Job Title &nbsp;·&nbsp; Date</div>
+      </div>
+      <div>
+        <div class="sum-overall-stars" id="sum-stars"></div>
+        <div class="sum-overall-label">Overall manager rating</div>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-val" id="stat-rated">0/8</div><div class="stat-label">Sections rated</div></div>
+      <div class="stat-card"><div id="stat-happy" style="font-size:13px;font-weight:600;color:var(--navy);margin:4px 0;">—</div><div class="stat-label">😊 Happiness</div></div>
+      <div class="stat-card"><div id="stat-energy" style="font-size:13px;font-weight:600;color:var(--navy);margin:4px 0;">—</div><div class="stat-label">⚡ Energy</div></div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-card-head"><h3>Comparison with last review</h3></div>
+      <div class="prev-grid">
+        <div class="prev-item">
+          <div class="prev-label">😊 Happiness</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Last review</div>
+          <div class="q-rate-wrap" style="margin-bottom:8px;">
+            <button class="q-rate-btn prev-emoji-btn" data-id="happy" data-val="struggling" onclick="setPrevEmoji('happy','struggling')">😔 Struggling</button>
+            <button class="q-rate-btn prev-emoji-btn" data-id="happy" data-val="good" onclick="setPrevEmoji('happy','good')">🙂 Good</button>
+            <button class="q-rate-btn prev-emoji-btn" data-id="happy" data-val="great" onclick="setPrevEmoji('happy','great')">😊 Great</button>
+          </div>
+          <div class="prev-vals"><span class="prev-val old" id="pvo-happy">—</span><span class="prev-arrow" id="pa-happy">→</span><span class="prev-val" id="pvn-happy">—</span></div>
+          <div class="prev-change" id="pc-happy"></div>
+        </div>
+        <div class="prev-item">
+          <div class="prev-label">⚡ Energy</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Last review</div>
+          <div class="q-rate-wrap" style="margin-bottom:8px;">
+            <button class="q-rate-btn prev-emoji-btn" data-id="energy" data-val="struggling" onclick="setPrevEmoji('energy','struggling')">😔 Struggling</button>
+            <button class="q-rate-btn prev-emoji-btn" data-id="energy" data-val="good" onclick="setPrevEmoji('energy','good')">🙂 Good</button>
+            <button class="q-rate-btn prev-emoji-btn" data-id="energy" data-val="great" onclick="setPrevEmoji('energy','great')">😊 Great</button>
+          </div>
+          <div class="prev-vals"><span class="prev-val old" id="pvo-energy">—</span><span class="prev-arrow" id="pa-energy">→</span><span class="prev-val" id="pvn-energy">—</span></div>
+          <div class="prev-change" id="pc-energy"></div>
+        </div>
+      </div>
+      <div style="padding:10px 16px;background:var(--surface);border-top:.5px solid var(--border);font-size:11.5px;color:var(--muted);font-style:italic;">Emoji selections shown for this review. Previous review comparison available via section rating stars above.</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-card-head"><h3>Section ratings &amp; notes</h3></div>
+      <table class="sum-table">
+        <thead><tr><th style="width:26%">Section</th><th style="width:15%">Last review</th><th style="width:15%">This review</th><th style="width:10%">Change</th><th>Notes</th></tr></thead>
+        <tbody id="sum-tbody"></tbody>
+      </table>
+    </div>
+    <div class="sum-card">
+      <div class="sum-card-head"><h3>Wellbeing indicators — averaged across sections</h3></div>
+      <div id="kpi-sum"></div>
+    </div>
+    <div id="sum-carry" style="display:none;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:18px 22px;margin-bottom:20px;"></div>
+    <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:18px 22px;margin-bottom:20px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;">💚 Wellbeing Index — Section 1</div>
+      <div id="sum-wellbeing-score"></div>
+    </div>
+    <div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:18px 22px;margin-bottom:20px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;">📈 Overall Rating Trend</div>
+      <div id="sum-trend"></div>
+    </div>
+    <div style="background:#fff;border:2px solid #1e3a5f;border-radius:10px;padding:18px 22px;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-size:20px;">🎯</div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#1e3a5f;margin-bottom:2px;">Manager commitment</div>
+          <div style="font-size:11px;color:var(--muted);">What the manager committed to do before the next review</div>
+        </div>
+      </div>
+      <div id="sum-commitment" style="font-size:13px;color:var(--ink);line-height:1.7;font-style:italic;padding:10px 14px;background:#f8f9fb;border-radius:6px;border-left:3px solid #1e3a5f;">No commitment recorded yet.</div>
+    </div>
+    <div class="sum-card">
+      <div class="sum-card-head"><h3>Agreed actions</h3></div>
+      <table class="act-table">
+        <thead><tr><th style="width:36px">#</th><th>Action</th><th style="width:130px">Source</th><th style="width:150px">Owner</th><th style="width:130px">Target date</th></tr></thead>
+        <tbody id="act-tbody"></tbody>
+      </table>
+    </div>
+    <div class="sum-card">
+      <div class="sum-card-head" style="background:#581c87;"><h3>🛡 Manager reflection — psychological safety checklist</h3></div>
+      <div style="padding:18px 22px;">
+        <div style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;padding:11px 14px;background:#fdf4ff;border-left:4px solid #a855f7;"><strong style="color:#7e22ce;">Complete this after the review, not during it.</strong> These prompts help you notice patterns that questions alone cannot capture. Psychological safety cannot be directly measured — but it can be inferred from how the conversation felt.</div>
+        <div id="refl-list" style="display:flex;flex-direction:column;gap:9px;"></div>
+      <div style="margin-top:20px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px;">⭐ Self-assessment — conversation quality</div>
+        <div id="refl-self"></div>
+        <div id="refl-score"></div>
+      </div>
+        <textarea id="refl-note-ta" style="width:100%;margin-top:14px;border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;font-family:Arial,sans-serif;color:var(--ink);outline:none;resize:vertical;min-height:72px;" placeholder="Any patterns or concerns to note privately after this review…" oninput="S.reflNote=this.value;autosave()"></textarea>
+      </div>
+    </div>
+
+    <div class="sum-card">
+      <div class="sum-card-head"><h3>Sign-off</h3></div>
+      <div style="padding:10px 18px 6px;font-size:11.5px;color:var(--muted);background:var(--surface);border-bottom:1px solid var(--border);">When the review is finished, the employee and the line manager each sign off below using their own signed-in account. Once both have signed, the review is marked <b>Complete</b>, locked, and moves to <b>1-2-1 History</b>.</div>
+      <div class="signoff-grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="signoff-col"><label>Employee</label><input type="text" id="so-emp-name" placeholder="Employee Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.empName=this.value;document.getElementById(&#39;sb-emp-name&#39;).value=this.value;updateMeta();"><input type="email" id="so-emp-email" placeholder="employee@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('empEmail',this.value)"></div>
+        <div class="signoff-col"><label>Manager</label><input type="text" id="so-mgr-name" placeholder="Manager Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="S.meta.mgrName=this.value;document.getElementById(&#39;sb-mgr-name&#39;).value=this.value;updateMeta();"><input type="email" id="so-mgr-email" placeholder="manager@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('mgrEmail',this.value)"></div>
+        <div class="signoff-col" style="border-right:none;"><label>Chair</label><input type="text" id="so-chair-name" placeholder="Chair Name" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;margin-bottom:6px;" oninput="setSignoff('chairName',this.value)"><input type="email" id="so-chair-email" placeholder="chair@sdi.co.uk" class="inline-in" style="border:1px solid var(--border);border-radius:5px;padding:6px 9px;width:100%;" oninput="setSignoff('chairEmail',this.value)"></div>
+      </div>
+      <div class="signoff-dates">
+        <div class="signoff-date"><strong>Date agreed:</strong> <input type="date" id="so-date-agreed" class="inline-in" style="width:160px;" oninput="setSignoff('dateAgreed',this.value)"></div>
+        <div class="signoff-date"><strong>Next review date:</strong> <input type="date" id="so-next-review" class="inline-in" style="width:160px;" oninput="setSignoff('nextReview',this.value)"></div>
+      </div>
+      <div id="so-panel" class="so-panel"></div>
+    </div>
+    <div class="nav-btns" style="background:transparent;border:none;padding:12px 0 0;">
+      <button class="btn btn-ghost" onclick="showHome()">← Back to overview</button>
+    </div>
+  </div>
+
+  <!-- KPI PAGE -->
+  <div id="page-kpi" class="page">
+    <div style="background:var(--navy);border-radius:var(--radius);padding:22px 26px;margin-bottom:20px;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:6px;">Service Desk Institute®</div>
+      <div style="font-size:18pt;font-weight:700;color:#fff;letter-spacing:-.3px;display:flex;align-items:center;gap:10px;"><span style="background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:700;padding:3px 10px;border-radius:4px;">5</span> Key Performance Indicators</div><div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;">Section 5 of 9</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;">Generic KPIs for this review period — update targets and actuals, set RAG status, and add commentary.</div>
+    </div>
+    <div class="sum-card" style="margin-bottom:16px;">
+      <div class="sum-card-head" style="background:#1e3a5f;"><h3>📊 Goal 07 — Exceed Revenue &amp; Gross Profit Targets · 2026</h3></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+
+        <!-- Revenue -->
+        <div style="padding:20px 28px;border-right:1px solid var(--border);">
+          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px;">Revenue · 2026 Target</div>
+          <div style="font-size:22pt;font-weight:700;color:var(--navy);letter-spacing:-.5px;line-height:1.1;">£2,503,011</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;">
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q1</div>
+              <div style="font-size:12px;font-weight:700;color:var(--navy);">£869,219</div><div id="qtr-rev_q1" onclick="setQtr('rev_q1')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q2</div>
+              <div style="font-size:12px;font-weight:700;color:var(--navy);">£544,928</div><div id="qtr-rev_q2" onclick="setQtr('rev_q2')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q3</div>
+              <div style="font-size:12px;font-weight:700;color:var(--navy);">£480,647</div><div id="qtr-rev_q3" onclick="setQtr('rev_q3')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q4</div>
+              <div style="font-size:12px;font-weight:700;color:var(--navy);">£608,217</div><div id="qtr-rev_q4" onclick="setQtr('rev_q4')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gross Profit -->
+        <div style="padding:20px 28px;">
+          <div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:4px;">Gross Profit <span style="font-weight:400;text-transform:none;letter-spacing:0;">before Marketing</span> · 2026 Target</div>
+          <div style="font-size:22pt;font-weight:700;color:var(--red);letter-spacing:-.5px;line-height:1.1;">£1,655,410</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;">
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q1</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);">£460,750</div><div id="qtr-gp_q1" onclick="setQtr('gp_q1')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q2</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);">£407,667</div><div id="qtr-gp_q2" onclick="setQtr('gp_q2')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q3</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);">£344,954</div><div id="qtr-gp_q3" onclick="setQtr('gp_q3')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+            <div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 6px;">
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);">Q4</div>
+              <div style="font-size:12px;font-weight:700;color:var(--red);">£442,039</div><div id="qtr-gp_q4" onclick="setQtr('gp_q4')" style="margin-top:5px;cursor:pointer;font-size:11px;font-weight:700;width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:#d1d5db;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;transition:all .15s;user-select:none;">·</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="sum-card" style="margin-top:0;">
+      <div class="cfo-intro">Complete Target and Actual for each metric, then set the RAG status. Use the commentary field for context or agreed actions.</div>
+      <div class="cfo-grid" id="cfo-kpi-grid"><div class="cfo-kpi" id="cfo-revenue">
+      <div class="cfo-kpi-name">Revenue</div>
+      <div class="cfo-kpi-desc">Total income against plan for the review period. Include recurring and one-off revenue where relevant.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;revenue&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;revenue&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;revenue&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;revenue&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;revenue&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;revenue&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-margin">
+      <div class="cfo-kpi-name">Gross Margin %</div>
+      <div class="cfo-kpi-desc">Gross profit as a percentage of revenue. Flag any deviation from budgeted margin and note key drivers.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;margin&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;margin&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;margin&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;margin&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;margin&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;margin&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-ebitda">
+      <div class="cfo-kpi-name">EBITDA</div>
+      <div class="cfo-kpi-desc">Earnings before interest, tax, depreciation and amortisation. Key indicator of operational performance.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;ebitda&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;ebitda&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;ebitda&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;ebitda&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;ebitda&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;ebitda&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-cashflow">
+      <div class="cfo-kpi-name">Cash Flow</div>
+      <div class="cfo-kpi-desc">Net cash position vs forecast. Note any timing issues, deferred revenue or working capital concerns.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;cashflow&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;cashflow&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;cashflow&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;cashflow&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;cashflow&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;cashflow&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-forecast">
+      <div class="cfo-kpi-name">Revenue Forecast vs Actual Variance</div>
+      <div class="cfo-kpi-desc">Variance between forecast and actual. Highlight if consistently over or under and any corrective actions.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;forecast&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;forecast&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;forecast&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;forecast&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;forecast&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;forecast&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-opex">
+      <div class="cfo-kpi-name">Opex vs Budget</div>
+      <div class="cfo-kpi-desc">Operating expenditure against budget. Note any material overspends, underspends or reforecast items.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;opex&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;opex&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;opex&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;opex&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;opex&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;opex&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-debtors">
+      <div class="cfo-kpi-name">Debtor Days</div>
+      <div class="cfo-kpi-desc">Average days outstanding on accounts receivable. Flag any aged debt or collection concerns.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;debtors&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;debtors&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;debtors&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;debtors&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;debtors&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;debtors&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div><div class="cfo-kpi" id="cfo-headcount">
+      <div class="cfo-kpi-name">Headcount &amp; People Costs</div>
+      <div class="cfo-kpi-desc">Actual headcount and total people cost vs plan. Include any upcoming changes or vacancies.</div>
+      <div class="cfo-kpi-fields">
+        <div class="cfo-kpi-field"><label>Target</label><input type="text" placeholder="e.g. £1.2m" value="" oninput="setCfo(&#39;headcount&#39;,&#39;target&#39;,this.value)"></div>
+        <div class="cfo-kpi-field"><label>Actual</label><input type="text" placeholder="e.g. £1.05m" value="" oninput="setCfo(&#39;headcount&#39;,&#39;actual&#39;,this.value)"></div>
+        <div class="cfo-rag">
+          <label>RAG</label>
+          <div class="cfo-rag-btns">
+            <button class="cfo-rag-btn r" onclick="setCfo(&#39;headcount&#39;,&#39;rag&#39;,&#39;r&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">R</button>
+            <button class="cfo-rag-btn a" onclick="setCfo(&#39;headcount&#39;,&#39;rag&#39;,&#39;a&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">A</button>
+            <button class="cfo-rag-btn g" onclick="setCfo(&#39;headcount&#39;,&#39;rag&#39;,&#39;g&#39;);this.parentNode.querySelectorAll(&#39;.cfo-rag-btn&#39;).forEach(b=&gt;b.classList.remove(&#39;active&#39;));this.classList.add(&#39;active&#39;)">G</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:9px;"><input type="text" placeholder="Commentary / context for this metric…" value="" oninput="setCfo(&#39;headcount&#39;,&#39;note&#39;,this.value)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:11.5px;color:var(--ink);background:var(--surface);box-sizing:border-box;"></div>
+    </div></div>
+      <div class="cfo-note-row">
+        <label>Overall commentary</label>
+        <textarea id="cfo-overall-note" placeholder="Overall narrative, priorities, or observations for this review period…" oninput="S.cfoNote=this.value;autosave()"></textarea>
+      </div>
+    </div>
+    <div class="indicators" style="margin-top:16px;">
+      <div class="ind-title"><span class="ind-emp-badge">Employee</span> How are you feeling about this section?</div>
+      <div class="ind-grid" id="kpi-ind-grid"></div>
+    </div>
+    <div class="rating-footer" style="margin-top:16px;">
+      <label>Manager rating:</label>
+      <div class="stars"><span class="kpi-star star" onclick="setKpiRating(1)" style="color:#e5e7eb;font-size:20px;cursor:pointer;transition:color .1s;">★</span><span class="kpi-star star" onclick="setKpiRating(2)" style="color:#e5e7eb;font-size:20px;cursor:pointer;transition:color .1s;">★</span><span class="kpi-star star" onclick="setKpiRating(3)" style="color:#e5e7eb;font-size:20px;cursor:pointer;transition:color .1s;">★</span><span class="kpi-star star" onclick="setKpiRating(4)" style="color:#e5e7eb;font-size:20px;cursor:pointer;transition:color .1s;">★</span><span class="kpi-star star" onclick="setKpiRating(5)" style="color:#e5e7eb;font-size:20px;cursor:pointer;transition:color .1s;">★</span></div>
+      <input class="rating-note" type="text" placeholder="Add a note for this section…" oninput="setKpiNote(this.value)" id="kpi-rating-note">
+    </div>
+    <div class="rating-guide">Manager rating — your overall assessment of this area based on the conversation. &nbsp;<span style="color:var(--amber);font-weight:700;">★</span> 1 Needs attention &nbsp;·&nbsp; <span style="color:var(--amber);font-weight:700;">★★</span> 2 Below expectations &nbsp;·&nbsp; <span style="color:var(--amber);font-weight:700;">★★★</span> 3 Meeting expectations &nbsp;·&nbsp; <span style="color:var(--amber);font-weight:700;">★★★★</span> 4 Exceeding &nbsp;·&nbsp; <span style="color:var(--amber);font-weight:700;">★★★★★</span> 5 Outstanding. &nbsp;Rate what you heard in the conversation, not just what was written.</div>
+    <div class="nav-btns" style="background:transparent;border:none;padding:12px 0 0;">
+      <button class="btn btn-ghost" onclick="showSection(3)">← 4. Goals, Strategy &amp; Belonging</button>
+      <button class="btn btn-navy" onclick="showSection(4)">Next: 6. Growth &amp; Development →</button>
+    </div>
+  </div>
+
+  <div id="page-reviews" class="page hr-page">
+    <div class="hr-head"><h1>1-2-1 Reviews</h1>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="auth-avatar" id="auth-avatar" style="width:30px;height:30px;font-size:12px;">?</div>
+        <div style="font-size:11.5px;line-height:1.3;"><div id="auth-user-name" style="font-weight:600;color:var(--ink);"></div><div id="auth-user-mail" style="color:var(--muted);"></div></div>
+        <button class="hr-btn ghost" style="padding:6px 12px;" onclick="DB.signOut()">Sign out</button>
+      </div>
+    </div>
+    <div style="display:grid;gap:14px;max-width:720px;">
+      <div class="doc-card">
+        <div class="auth-sec-label" style="margin-top:0;">Your reviews</div>
+        <div id="auth-review-list" class="auth-review-list"><div class="auth-empty">Loading…</div></div>
+        <button id="auth-admin-btn" class="auth-admin-btn" style="display:none;" onclick="DB.openTeam()">⚙ Manage team &amp; reporting structure</button>
+      </div>
+      <div class="doc-card">
+        <div class="auth-sec-label" style="margin-top:0;">Start a new review</div>
+        <select id="auth-new-emp" class="hr-sel" style="width:100%;margin-bottom:8px;"><option value="">Select a team member…</option></select>
+        <button class="hr-btn" onclick="DB.createReview()">+ Create review</button>
+      </div>
+    </div>
+  </div>
+  <div id="page-handbook" class="page hr-page"></div>
+  <div id="page-jd" class="page hr-page"></div>
+  <div id="page-selfcert" class="page hr-page"></div>
+  <div id="page-expenses" class="page hr-page"></div>
+  <div id="page-flexwork" class="page hr-page"></div>
+  <div id="page-dse" class="page hr-page"></div>
+  <div id="page-followup" class="page hr-page"></div>
+  <div id="page-history" class="page hr-page"></div>
+
+</main>
+</div>
+
