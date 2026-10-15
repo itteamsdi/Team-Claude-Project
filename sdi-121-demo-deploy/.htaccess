@@ -1,9 +1,0 @@
-# Apache: serve index.html for any path (single-page app), matching netlify.toml.
-FallbackResource /index.html
-
-# Always fetch the latest page after a deploy.
-<IfModule mod_headers.c>
-  <Files "index.html">
-    Header set Cache-Control "no-cache"
-  </Files>
-</IfModule>

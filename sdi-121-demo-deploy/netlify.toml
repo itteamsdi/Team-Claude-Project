@@ -1,9 +1,0 @@
-# Netlify config for the SDI 1-2-1 Review demo (static single-page site).
-[build]
-  publish = "."
-
-# Serve index.html for any path (single-file app).
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
