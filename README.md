@@ -9,7 +9,7 @@ An internal HR web app for SDI staff, in plain PHP 8.3 with a MariaDB 10.6 datab
 - **1-2-1 History** and **Follow-Up to 1-2-1**: signed-off reviews, and the actions agreed in the open review.
 - **Manage Team** (admins): add people, set who they report to, give admin rights and issue one-time passwords.
 
-This replaces the earlier Supabase + Netlify demo (`sdi-121-demo-deploy/` and `sdi-121-backend/` in this repository). The screens are the same. Sign-in, storage and all permission checks now happen on SDI's own server.
+This replaces the earlier Supabase + Netlify demo, which has been retired. The screens are the same; the review sidebar's "Export & share" button has been dropped. Sign-in, storage and all permission checks now happen on SDI's own server.
 
 ## Folders
 
@@ -31,7 +31,7 @@ This replaces the earlier Supabase + Netlify demo (`sdi-121-demo-deploy/` and `s
 | `DB_NAME` | Yes | The app's database. |
 | `DB_USER` | Yes | Database user for the app. It needs SELECT, INSERT, UPDATE and DELETE on that database. |
 | `DB_PASS` | Yes | That user's password. |
-| `STORAGE_DIR` | No | Writable folder outside the repository. Not used yet: the app has no uploads or cache files. |
+| `STORAGE_DIR` | Recommended | Writable folder outside the repository and outside `public/`. The app keeps its sign-in sessions in `STORAGE_DIR/sessions` and creates that folder itself. If this is not set, PHP's shared session folder is used. |
 | `BOOTSTRAP_ADMIN_EMAIL` | First run only | Email of the first admin. |
 | `BOOTSTRAP_ADMIN_PASSWORD` | First run only | A temporary password for the first admin. It works only while the app has no accounts at all, and the admin must change it straight away. Remove both BOOTSTRAP settings once the first admin has signed in. |
 
@@ -39,12 +39,90 @@ This replaces the earlier Supabase + Netlify demo (`sdi-121-demo-deploy/` and `s
 
 1. Point the web server's document root at `public/`. Nothing else in the repository should be reachable. Every request for a path that does not exist should return 404. No rewrite to `index.php` is needed.
 2. Serve the site over HTTPS only. Session cookies are marked Secure, so sign-in does not work over plain HTTP.
-3. Set the environment variables above for php-fpm.
+3. Set the environment variables above for this site. See "Server set-up: Apache with a shared php-fpm" below.
 4. The deployment system runs the files in `database/migrations/`. The user that runs them needs CREATE, ALTER, INDEX and REFERENCES on the app's database. The SQL uses CHECK constraints, JSON_VALID and foreign keys, all supported by MariaDB 10.6.
 5. PHP extensions used: pdo_mysql, mbstring, json, openssl and session. Nothing else is needed.
-6. PHP sessions use the server's normal session storage. Set `session.gc_maxlifetime = 28800` (8 hours) for the php-fpm pool. Otherwise Ubuntu's session clean-up can sign people out after 24 minutes of inactivity.
+6. Set `STORAGE_DIR` so the app keeps its own sessions. With a shared session folder, Ubuntu's clean-up can sign people out after 24 minutes of inactivity.
 7. If the site sits behind a reverse proxy or load balancer, make sure PHP's `REMOTE_ADDR` is the visitor's real IP address. The sign-in lockout counts failures per IP address.
 8. The app does not send email or need scheduled tasks.
+
+## Server set-up: Apache with a shared php-fpm
+
+SDI's servers run one php-fpm for all sites. Each site's settings go in **that site's Apache virtual host**, using `SetEnv`. Apache passes them to php-fpm with every request, and the app reads them with `getenv()`. Other sites never see them. The values live only on the server, never in this repository.
+
+### 1. Find the site's virtual host file
+
+On Ubuntu, each site has a file in `/etc/apache2/sites-available/`, usually named after the site's address, for example `hr.example.com.conf`. Apache uses it while a link to it exists in `/etc/apache2/sites-enabled/`. To see exactly which file serves which address, run:
+
+```bash
+sudo apache2ctl -S
+```
+
+Each line shows an address and the file and line number of its `<VirtualHost>` block, for example `port 443 namevhost hr.example.com (/etc/apache2/sites-enabled/hr.example.com-le-ssl.conf:2)`.
+
+- Put the settings in the **port 443 (HTTPS)** block.
+- If the certificate came from Let's Encrypt (certbot), that block is usually in a separate file ending `-le-ssl.conf`.
+- If the site has no virtual host yet, create `/etc/apache2/sites-available/<address>.conf`, then turn it on with `sudo a2ensite <address>`.
+
+### 2. Add the settings
+
+Inside the site's `<VirtualHost *:443>` block (replace every value in angle brackets):
+
+```apache
+DocumentRoot /path/to/repository/public
+
+SetEnv APP_ENV     staging
+SetEnv APP_URL     https://<site address>
+SetEnv DB_HOST     localhost
+SetEnv DB_PORT     3306
+SetEnv DB_NAME     <database name>
+SetEnv DB_USER     <database user>
+SetEnv DB_PASS     "<database password>"
+SetEnv STORAGE_DIR /var/lib/sdi-hr-staging
+
+# First sign-in only. Remove both lines once the first admin has signed in.
+SetEnv BOOTSTRAP_ADMIN_EMAIL    <first admin's email>
+SetEnv BOOTSTRAP_ADMIN_PASSWORD "<temporary password>"
+```
+
+- Keep the double quotes around passwords, so spaces and symbols are read correctly.
+- The block must also send `.php` files to php-fpm. The server's existing sites show how. It is usually a `SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"` line inside `<FilesMatch "\.php$">`, or the server-wide `php8.3-fpm` Apache config.
+- Use `staging` or `production` for `APP_ENV`, and a different database, user and `STORAGE_DIR` for each.
+
+### 3. Create the storage folder and lock down the file
+
+```bash
+sudo mkdir -p /var/lib/sdi-hr-staging
+sudo chown www-data:www-data /var/lib/sdi-hr-staging
+sudo chmod 700 /var/lib/sdi-hr-staging
+sudo chmod 640 /etc/apache2/sites-available/<site file>.conf
+```
+
+`www-data` is the user php-fpm runs as on Ubuntu. To check, run `grep -E '^(user|group)' /etc/php/8.3/fpm/pool.d/www.conf`, and put the user it shows in the `chown` command.
+
+If the site is behind Cloudflare, also turn on Apache's `remoteip` module with `RemoteIPHeader CF-Connecting-IP` and Cloudflare's address ranges as `RemoteIPTrustedProxy`. Otherwise every visitor appears to come from a Cloudflare address, and the sign-in lockout would treat them all as one person.
+
+### 4. Check the configuration and reload Apache
+
+```bash
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+`configtest` should say `Syntax OK`. Apache's `env` module must be on, as it is by default. If `SetEnv` is reported as unknown, run `sudo a2enmod env`.
+
+### 5. Check the database login and the site
+
+Check that the database name, user and password work. This asks for the password rather than putting it on the command line:
+
+```bash
+mariadb -h localhost -u <database user> -p <database name> -e "SELECT 'connected' AS result;"
+```
+
+Then open the site address. You should see the SDI HR sign-in page.
+
+- If it says "Something went wrong on the server", look for lines starting `[sdi-hr]` in the site's Apache error log, the file named by `ErrorLog` in the virtual host. With php-fpm, PHP messages usually appear there as `PHP message: ...`. They can also be in `/var/log/php8.3-fpm.log`.
+- The database tables appear after the deployment system has run the migrations. If sign-in fails before then, check that the migrations have run.
 
 ## First sign-in
 
@@ -83,12 +161,6 @@ More rules:
 - Handbook and job description text is cleaned on the server (`src/HtmlSanitizer.php`). Only basic formatting tags survive, plus safe `https:`/`mailto:` links. Scripts, styles, event handlers and images are removed. This closes the "add DOMPurify" follow-up from the demo.
 - Errors are written to the PHP error log. People only ever see a short generic message.
 - Expense totals are recalculated on the server.
-
-## Open questions
-
-- **Export & share** in the review sidebar is switched off. It saved a copy of the old single-file page, which no longer works now that the app is split into PHP, CSS and JS files. A print-friendly summary page could replace it.
-- **Old demo files**: `sdi-121-demo-deploy/`, `sdi-121-backend/`, `.github/workflows/deploy.yml` and the root HTML file belong to the Supabase demo. They are left in place until it is agreed they can go.
-- **Existing demo data**: anything entered in the Supabase demo has not been carried over. It would need a one-off export and import.
 
 ## Checking it on staging
 

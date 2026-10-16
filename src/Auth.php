@@ -28,6 +28,22 @@ final class Auth
         ini_set('session.use_strict_mode', '1');
         ini_set('session.use_only_cookies', '1');
         ini_set('session.gc_maxlifetime', (string) self::IDLE_TIMEOUT_SECONDS);
+        // With STORAGE_DIR set, keep this app's sessions in their own folder, so the
+        // server-wide session clean-up (and other sites on a shared php-fpm) leave them alone.
+        $storage = Config::get('STORAGE_DIR');
+        if ($storage !== null) {
+            $dir = rtrim($storage, '/') . '/sessions';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0700, true);
+            }
+            if (is_dir($dir) && is_writable($dir)) {
+                session_save_path($dir);
+                ini_set('session.gc_probability', '1');
+                ini_set('session.gc_divisor', '100');
+            } else {
+                error_log('[sdi-hr] STORAGE_DIR/sessions is not writable; using the default session folder.');
+            }
+        }
         session_name('sdihr_session');
         session_set_cookie_params([
             'lifetime' => 0,
