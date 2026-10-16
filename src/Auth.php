@@ -130,13 +130,17 @@ final class Auth
         self::bootstrapFirstAdmin($email, $password);
 
         $row = Db::one(
-            'SELECT u.id, u.password_hash, u.session_epoch FROM users u
+            'SELECT u.id, u.password_hash, u.session_epoch, u.must_change_password FROM users u
                JOIN org_members o ON o.email = u.email WHERE u.email = ?',
             [$email]
         );
         // Always run password_verify, so a missing account takes as long as a wrong password.
         $hash = $row['password_hash'] ?? '$2y$10$F58fMd.PeRIeb6B7cMs0VeuaJ9TDQxasfaITMrgHKwF77wUZX.lkS';
         $ok = password_verify($password, $hash) && $row !== null;
+        // One-time passwords are often copied with a stray space; they never contain spaces.
+        if (!$ok && $row !== null && (int) $row['must_change_password'] === 1 && trim($password) !== $password) {
+            $ok = password_verify(trim($password), $hash);
+        }
         self::recordAttempt($email, $ok);
         if (!$ok) {
             return $generic;
@@ -174,6 +178,9 @@ final class Auth
     public static function changePassword(array $user, string $current, string $new, string $confirm): ?string
     {
         $row = Db::one('SELECT password_hash FROM users WHERE id = ?', [$user['id']]);
+        if ($row !== null && $user['must_change_password'] && !password_verify($current, $row['password_hash'])) {
+            $current = trim($current); // one-time passwords never contain spaces
+        }
         if ($row === null || !password_verify($current, $row['password_hash'])) {
             return 'Your current password is not right. Check it and try again.';
         }

@@ -15,7 +15,7 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 
 | Folder | What it holds |
 |---|---|
-| `public/` | The web root. Entry points `index.php` (the app), `login.php`, `password.php`, `logout.php` and `api.php` (the JSON endpoint the app's JavaScript calls), plus `css/` and `js/`. |
+| `public/` | The web root. Entry points `index.php` (the app), `login.php`, `password.php`, `logout.php` and `api.php` (the JSON endpoint the app's JavaScript calls), plus `css/`, `js/` and `robots.txt`. |
 | `src/` | PHP classes and templates. Not reachable from the web. `Access.php` holds the access rules; `Api/` holds one file per feature. |
 | `src/content/` | Default Staff Handbook and job description master template, shown until an admin saves their own version. Served only to signed-in staff. |
 | `database/migrations/` | One `.sql` file per table, run once in name order on deployment. |
@@ -26,7 +26,7 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 |---|---|---|
 | `APP_ENV` | Yes | `staging` or `production`. |
 | `APP_URL` | Yes | The site's address, for example `https://hr.example.com` (no trailing slash). |
-| `DB_HOST` | Yes | MariaDB host. |
+| `DB_HOST` | Yes | MariaDB host: `localhost` when MariaDB is on the same server. |
 | `DB_PORT` | No | MariaDB port. Defaults to 3306. |
 | `DB_NAME` | Yes | The app's database. |
 | `DB_USER` | Yes | Database user for the app. It needs SELECT, INSERT, UPDATE and DELETE on that database. |
@@ -37,100 +37,181 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 
 ## Setting up a new server (for IT)
 
-1. Point the web server's document root at `public/`. Nothing else in the repository should be reachable. Every request for a path that does not exist should return 404. No rewrite to `index.php` is needed.
-2. Serve the site over HTTPS only. Session cookies are marked Secure, so sign-in does not work over plain HTTP.
-3. Set the environment variables above for this site. See "Server set-up: Apache with a shared php-fpm" below.
-4. The deployment system runs the files in `database/migrations/`. The user that runs them needs CREATE, ALTER, INDEX and REFERENCES on the app's database. The SQL uses CHECK constraints, JSON_VALID and foreign keys, all supported by MariaDB 10.6.
-5. PHP extensions used: pdo_mysql, mbstring, json, openssl and session. Nothing else is needed.
-6. Set `STORAGE_DIR` so the app keeps its own sessions. With a shared session folder, Ubuntu's clean-up can sign people out after 24 minutes of inactivity.
-7. If the site sits behind a reverse proxy or load balancer, make sure PHP's `REMOTE_ADDR` is the visitor's real IP address. The sign-in lockout counts failures per IP address.
-8. The app does not send email or need scheduled tasks.
+1. Create the database and its user. See "Step 1: Create the database".
+2. Set the site's settings in its Apache virtual host. See "Step 2: Apache settings".
+3. Point the site's document root at the repository's `public/` folder. Nothing else in the repository should be reachable.
+4. Serve the site over HTTPS only. Session cookies are marked Secure, so sign-in does not work over plain HTTP.
+5. The deployment system runs the files in `database/migrations/`. The user that runs them needs CREATE, ALTER, INDEX and REFERENCES on the app's database. The SQL uses CHECK constraints, JSON_VALID and foreign keys, all supported by MariaDB 10.6.
+6. PHP extensions used: pdo_mysql (Ubuntu package `php8.3-mysql`), mbstring, json, openssl and session. Nothing else is needed.
+7. Set `STORAGE_DIR` so the app keeps its own sessions. With a shared session folder, Ubuntu's clean-up can sign people out after 24 minutes of inactivity.
+8. If the site sits behind Cloudflare, a reverse proxy or a load balancer, PHP's `REMOTE_ADDR` must be the visitor's real IP address, because the sign-in lockout counts failures per address. See "Cloudflare" below.
+9. The app does not send email or need scheduled tasks.
 
-## Server set-up: Apache with a shared php-fpm
+## Step 1: Create the database
 
-SDI's servers run one php-fpm for all sites. Each site's settings go in **that site's Apache virtual host**, using `SetEnv`. Apache passes them to php-fpm with every request, and the app reads them with `getenv()`. Other sites never see them. The values live only on the server, never in this repository.
+Use one database and one user per environment. Suggested names:
 
-### 1. Find the site's virtual host file
+| | Staging | Production |
+|---|---|---|
+| Database | `sdihr_staging` | `sdihr_production` |
+| App user | `sdihr_staging_user` | `sdihr_production_user` |
 
-On Ubuntu, each site has a file in `/etc/apache2/sites-available/`, usually named after the site's address, for example `hr.example.com.conf`. Apache uses it while a link to it exists in `/etc/apache2/sites-enabled/`. To see exactly which file serves which address, run:
+**Password.** Generate a new random password for each environment, for example with a password manager or `openssl rand -base64 24`. Keep it only on the server and in the password manager, never in this repository, an email or a ticket. Avoid the characters `"`, `\` and `${`, which Apache treats specially in its configuration.
 
-```bash
-sudo apache2ctl -S
+Open MariaDB as an admin (`sudo mariadb`) and run:
+
+```sql
+CREATE DATABASE sdihr_staging CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'sdihr_staging_user'@'localhost' IDENTIFIED BY '<database password>';
+GRANT SELECT, INSERT, UPDATE, DELETE ON sdihr_staging.* TO 'sdihr_staging_user'@'localhost';
 ```
 
-Each line shows an address and the file and line number of its `<VirtualHost>` block, for example `port 443 namevhost hr.example.com (/etc/apache2/sites-enabled/hr.example.com-le-ssl.conf:2)`.
+- **The host part.** It must match how the app connects. With `DB_HOST localhost` the user must be `'...'@'localhost'`. With `DB_HOST 127.0.0.1` it must be `'...'@'127.0.0.1'`.
+- **The tables.** Do not create them by hand. The deployment system creates them from `database/migrations/`.
+- **Leaving MariaDB.** Type `exit;` and press Enter, or press Ctrl+D. If the prompt shows `->`, MariaDB is waiting for the end of a command. Type `;` and press Enter, or press Ctrl+C, first.
 
-- Put the settings in the **port 443 (HTTPS)** block.
-- If the certificate came from Let's Encrypt (certbot), that block is usually in a separate file ending `-le-ssl.conf`.
-- If the site has no virtual host yet, create `/etc/apache2/sites-available/<address>.conf`, then turn it on with `sudo a2ensite <address>`.
+Check the login works. This asks for the password rather than putting it on the command line:
 
-### 2. Add the settings
+```bash
+mariadb -h localhost -u sdihr_staging_user -p sdihr_staging -e "SELECT 'connected' AS result;"
+```
 
-Inside the site's `<VirtualHost *:443>` block (replace every value in angle brackets):
+Once the migrations have run, `SHOW TABLES;` in place of the SELECT should list seven tables: `job_descriptions`, `login_attempts`, `org_members`, `reviews`, `shared_docs`, `submissions` and `users`.
+
+## Step 2: Apache settings (one shared php-fpm for all sites)
+
+SDI's servers run one php-fpm for all sites, so each site's settings go in **that site's Apache virtual host**, using `SetEnv`. Apache passes them to php-fpm with every request, and the app reads them with `getenv()`. Other sites never see them. The values live only on the server, never in this repository.
+
+### Find the site's virtual host file
+
+On Ubuntu, each site has a file in `/etc/apache2/sites-available/`, usually named after the site's address. Apache uses it while a link to it exists in `/etc/apache2/sites-enabled/`. To see which file serves which address:
+
+```bash
+sudo apache2ctl -S | grep <site address>
+```
+
+Each line shows a port, the address, and the file and line number of its `<VirtualHost>` block.
+
+- **Port 80 block.** Leave it as it is. When certbot (Let's Encrypt) set up the certificate, it added lines there that redirect every visitor to HTTPS. They are still needed.
+- **Port 443 block.** The settings go here. It is usually in a separate file ending `-le-ssl.conf`, for example `/etc/apache2/sites-available/<site address>-le-ssl.conf`.
+- **No port 443 block?** The site has no HTTPS yet. Run `sudo certbot --apache -d <site address>` to create it, then edit the new file.
+
+### Edit the port 443 block
+
+Change `DocumentRoot` and the `<Directory>` path so they point at the repository's `public` folder, and add the `SetEnv` lines. Leave the certificate lines that certbot added (`SSLCertificateFile`, `Include /etc/letsencrypt/...`) unchanged. With the repository deployed into `/home/www/<site address>/htdocs`, it looks like this:
 
 ```apache
-DocumentRoot /path/to/repository/public
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+	ServerName <site address>
+	DocumentRoot /home/www/<site address>/htdocs/public
 
-SetEnv APP_ENV     staging
-SetEnv APP_URL     https://<site address>
-SetEnv DB_HOST     localhost
-SetEnv DB_PORT     3306
-SetEnv DB_NAME     <database name>
-SetEnv DB_USER     <database user>
-SetEnv DB_PASS     "<database password>"
-SetEnv STORAGE_DIR /var/lib/sdi-hr-staging
+	<Directory "/home/www/<site address>/htdocs/public">
+		Options -Indexes +FollowSymLinks +SymLinksIfOwnerMatch -Multiviews
+		AllowOverride all
+		Require all granted
+		DirectoryIndex index.php
+	</Directory>
 
-# First sign-in only. Remove both lines once the first admin has signed in.
-SetEnv BOOTSTRAP_ADMIN_EMAIL    <first admin's email>
-SetEnv BOOTSTRAP_ADMIN_PASSWORD "<temporary password>"
+	<FilesMatch \.php$>
+		SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"
+	</FilesMatch>
+
+	SetEnv APP_ENV     staging
+	SetEnv APP_URL     https://<site address>
+	SetEnv DB_HOST     localhost
+	SetEnv DB_PORT     3306
+	SetEnv DB_NAME     sdihr_staging
+	SetEnv DB_USER     sdihr_staging_user
+	SetEnv DB_PASS     "<database password>"
+	SetEnv STORAGE_DIR /home/www/<site address>/storage
+
+	# First sign-in only. Remove both lines once the first admin has signed in.
+	SetEnv BOOTSTRAP_ADMIN_EMAIL    <first admin's email>
+	SetEnv BOOTSTRAP_ADMIN_PASSWORD "<temporary password>"
+
+	ErrorLog /home/www/logs/error-logs/<site address>-error.log
+	CustomLog /home/www/logs/access-logs/<site address>-access.log combined
+
+	# ... the certificate lines certbot added, unchanged ...
+</VirtualHost>
+</IfModule>
 ```
 
-- Keep the double quotes around passwords, so spaces and symbols are read correctly.
-- The block must also send `.php` files to php-fpm. The server's existing sites show how. It is usually a `SetHandler "proxy:unix:/run/php/php8.3-fpm.sock|fcgi://localhost"` line inside `<FilesMatch "\.php$">`, or the server-wide `php8.3-fpm` Apache config.
-- Use `staging` or `production` for `APP_ENV`, and a different database, user and `STORAGE_DIR` for each.
+**Writing the `SetEnv` lines:**
 
-### 3. Create the storage folder and lock down the file
+- **Angle brackets.** Text in angle brackets is a placeholder. Replace the whole thing, brackets included. For example, write `SetEnv BOOTSTRAP_ADMIN_EMAIL name@sdi-e.com`, not `<name@sdi-e.com>`.
+- **Quotes.** Put passwords in double quotes, so spaces and symbols are read correctly. Emails and names need no quotes.
+- **One of each.** Have only one line for each setting in the block.
+- **The `/public` on the end of `DocumentRoot`.** This matters. If the site pointed at `htdocs` itself, anyone could download `src/`, `README.md`, `CLAUDE.md` and the `.git` folder.
+- **Staging and production.** Use `staging` or `production` for `APP_ENV`. Give each environment its own database, user and `STORAGE_DIR`.
+
+### Create the storage folder and lock down the file
 
 ```bash
-sudo mkdir -p /var/lib/sdi-hr-staging
-sudo chown www-data:www-data /var/lib/sdi-hr-staging
-sudo chmod 700 /var/lib/sdi-hr-staging
+grep -E '^(user|group)' /etc/php/8.3/fpm/pool.d/www.conf
+sudo mkdir -p /home/www/<site address>/storage
+sudo chown <php-fpm user>:<php-fpm group> /home/www/<site address>/storage
+sudo chmod 700 /home/www/<site address>/storage
 sudo chmod 640 /etc/apache2/sites-available/<site file>.conf
 ```
 
-`www-data` is the user php-fpm runs as on Ubuntu. To check, run `grep -E '^(user|group)' /etc/php/8.3/fpm/pool.d/www.conf`, and put the user it shows in the `chown` command.
+The first command shows the user php-fpm runs as. On Ubuntu this is normally `www-data`. The app creates `sessions` inside the storage folder on first use.
 
-If the site is behind Cloudflare, also turn on Apache's `remoteip` module with `RemoteIPHeader CF-Connecting-IP` and Cloudflare's address ranges as `RemoteIPTrustedProxy`. Otherwise every visitor appears to come from a Cloudflare address, and the sign-in lockout would treat them all as one person.
-
-### 4. Check the configuration and reload Apache
+### Check and reload Apache
 
 ```bash
 sudo apache2ctl configtest
 sudo systemctl reload apache2
 ```
 
-`configtest` should say `Syntax OK`. Apache's `env` module must be on, as it is by default. If `SetEnv` is reported as unknown, run `sudo a2enmod env`.
+`configtest` should say `Syntax OK`. Reload Apache after **every** change to the file. If `SetEnv` is reported as unknown, run `sudo a2enmod env`.
 
-### 5. Check the database login and the site
+### Cloudflare
 
-Check that the database name, user and password work. This asks for the password rather than putting it on the command line:
-
-```bash
-mariadb -h localhost -u <database user> -p <database name> -e "SELECT 'connected' AS result;"
-```
-
-Then open the site address. You should see the SDI HR sign-in page.
-
-- If it says "Something went wrong on the server", look for lines starting `[sdi-hr]` in the site's Apache error log, the file named by `ErrorLog` in the virtual host. With php-fpm, PHP messages usually appear there as `PHP message: ...`. They can also be in `/var/log/php8.3-fpm.log`.
-- The database tables appear after the deployment system has run the migrations. If sign-in fails before then, check that the migrations have run.
+If the site is behind Cloudflare, the logs show visitor addresses such as `172.68.x.x` or `172.69.x.x`. Turn on Apache's `remoteip` module (`sudo a2enmod remoteip`) and add `RemoteIPHeader CF-Connecting-IP` to the site, with Cloudflare's published address ranges as `RemoteIPTrustedProxy` lines. Without this, every visitor appears to come from Cloudflare, and five wrong passwords from anyone would block sign-in for everyone for 15 minutes.
 
 ## First sign-in
 
-1. With `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` set, open the site and sign in with them.
-2. Choose a new password when asked. The first admin now exists, and the BOOTSTRAP settings are ignored from then on. IT can remove them.
-3. Open **Manage Team** and add people, starting from the top of the org chart. The full name and email come first, then who the person reports to and their role.
-4. Each new person gets a **one-time password**. Pass it on in person or by phone, not by email. They choose their own password at first sign-in.
-5. If someone forgets their password, an admin uses **Reset password** next to their name in Manage Team.
+1. **Check the BOOTSTRAP settings.** `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` must be in the port 443 block, Apache reloaded, and the migrations run (see Step 1 for the `SHOW TABLES` check).
+2. **Sign in.** Open the site and enter exactly that email and temporary password.
+3. **Choose your password.** You are taken to "Choose your password". Enter the temporary password, then your own password twice (at least 10 characters). You are now the first admin.
+4. **Remove the BOOTSTRAP lines.** Delete both lines from the virtual host file and reload Apache. They only work while the app has no accounts at all, so they are ignored from now on anyway.
+5. **Add people.** Open **Manage Team** and add people, starting from the top of the org chart: full name, work email, who they report to and their role.
+6. **Pass on one-time passwords.** Each new person gets a **one-time password**. Pass it on in person or by phone, not by email. They choose their own password at first sign-in.
+7. **Forgotten passwords.** If someone forgets their password, an admin uses **Reset password** next to their name in Manage Team.
+
+## Troubleshooting
+
+When the app hits a problem, it shows a short message and writes the real reason to the site's Apache error log (the `ErrorLog` file in the virtual host). To see the latest app errors:
+
+```bash
+sudo grep "sdi-hr" /home/www/logs/error-logs/<site address>-error.log | tail -5
+```
+
+If nothing is there, try `sudo tail -20 /var/log/php8.3-fpm.log`.
+
+### On screen
+
+| What you see | What it means | Fix |
+|---|---|---|
+| Apache's own **Forbidden** page | Apache found no `index.php` in the document root, or cannot open the folder | Check that `DocumentRoot` points at the repository's `public` folder and that `index.php` is there (`ls -la <path>/public/`). The error log says which: `AH01276` means no index file; `AH00035` means folder permissions (`sudo chmod o+x` on each folder in the path); `AH01630` means the `<Directory>` block does not cover that path. |
+| "Something went wrong on the server" | See the error log; the table below lists the usual causes | |
+| "That email and password do not match an account" | The email or password is different from what is stored | Check for typing errors. For the first sign-in, check the BOOTSTRAP values have no leftover `< >` or stray spaces, and that Apache was reloaded. The BOOTSTRAP sign-in only works while the `users` table is empty. |
+| "Too many attempts" | Five wrong passwords in 15 minutes | Wait 15 minutes, or ask an admin to reset the password. If it happens to everyone, see "Cloudflare". |
+
+### In the error log
+
+| What the log line contains | What it means | Fix |
+|---|---|---|
+| `Missing required environment variable DB_HOST` (or another name) | Apache is not passing the settings | Put the `SetEnv` lines inside the port 443 block, not the port 80 one, then reload Apache. |
+| `could not find driver` | PHP's MariaDB driver is missing | `sudo apt install php8.3-mysql`, then `sudo systemctl restart php8.3-fpm`. |
+| `[1045] Access denied for user` | MariaDB refused the user or password | Test the login with the `mariadb` command in Step 1. If that fails too, check `SELECT user, host FROM mysql.user WHERE user = '<database user>';` and create the user for the right host, or reset its password with `ALTER USER '<database user>'@'localhost' IDENTIFIED BY '<database password>';`. If the terminal login works, the `DB_PASS` line is wrong: check the quotes, stray spaces, or the characters `"`, `\` and `${`. |
+| `[2002] No such file or directory` | PHP cannot find MariaDB's local socket | Use `DB_HOST 127.0.0.1`, and make sure the user exists as `'<database user>'@'127.0.0.1'`. |
+| `[1049] Unknown database` | `DB_NAME` does not match the database | Correct the name in the `SetEnv` line. |
+| `Table '...users' doesn't exist` (`42S02`) | The migrations have not run | Ask IT to run the files in `database/migrations/` in name order. |
+| `[1142] ... command denied` | The user is missing a permission | Grant SELECT, INSERT, UPDATE and DELETE on the database to that user. |
+| `STORAGE_DIR/sessions is not writable` | php-fpm cannot write to the storage folder | Set the storage folder's owner to the php-fpm user (see "Create the storage folder"). |
 
 ## Access model
 
@@ -161,6 +242,7 @@ More rules:
 - Handbook and job description text is cleaned on the server (`src/HtmlSanitizer.php`). Only basic formatting tags survive, plus safe `https:`/`mailto:` links. Scripts, styles, event handlers and images are removed. This closes the "add DOMPurify" follow-up from the demo.
 - Errors are written to the PHP error log. People only ever see a short generic message.
 - Expense totals are recalculated on the server.
+- Search engines are kept out. `public/robots.txt` asks every crawler to stay away. Every page also sends an `X-Robots-Tag: noindex, nofollow, noarchive` header, so a page is never listed even if a crawler finds a link to it. This applies to staging and production alike.
 
 ## Checking it on staging
 

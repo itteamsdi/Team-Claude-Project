@@ -14,6 +14,8 @@ final class Http
             return;
         }
         header('X-Content-Type-Options: nosniff');
+        // Internal app: never list any page in search engines (see also public/robots.txt).
+        header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('X-Frame-Options: DENY');
         header('Referrer-Policy: same-origin');
         header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
