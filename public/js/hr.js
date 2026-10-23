@@ -153,7 +153,7 @@ HR.editHandbook = function(){
 HR.saveHandbook = async function(){
   const html=HR.strip(document.getElementById("handbook-edit").innerHTML);
   const [,error]=await HR.call("docs.save",{key:"handbook",content:html});
-  if(error){ alert("Save failed: "+error.message); return; }
+  if(error){ HR.error("Save failed: "+error.message); return; }
   if(typeof toast==="function") toast("Handbook updated"); showHandbook();
 };
 
@@ -169,7 +169,7 @@ HR.getJDTemplate = async function(){
 HR.saveJDTemplate = async function(){
   const html=HR.strip(document.getElementById("jd-edit").innerHTML);
   const [saved,error]=await HR.call("docs.save",{key:"jd_template",content:html});
-  if(error){ alert("Save failed: "+error.message); return; }
+  if(error){ HR.error("Save failed: "+error.message); return; }
   HR._jdTemplate=(saved&&saved.content)||html;
   if(typeof toast==="function") toast("Master template saved"); HR.buildJD();
 };
@@ -230,24 +230,24 @@ HR.renderJDPending = async function(el){
 HR.submitJD = async function(emp){
   const html=HR.strip(document.getElementById("jd-edit").innerHTML);
   const [,error]=await HR.call("jd.submit",{employee_email:emp,content:html});
-  if(error){ alert("Submit failed: "+error.message); return; }
+  if(error){ HR.error("Submit failed: "+error.message); return; }
   if(typeof toast==="function") toast("Submitted for Paul's approval"); HR.buildJD();
 };
 HR.adminSaveJD = async function(emp){
   const html=HR.strip(document.getElementById("jd-edit").innerHTML);
   const [,error]=await HR.call("jd.publish",{employee_email:emp,content:html});
-  if(error){ alert("Save failed: "+error.message); return; }
+  if(error){ HR.error("Save failed: "+error.message); return; }
   if(typeof toast==="function") toast("Published"); HR.buildJD();
 };
 HR.approveJD = async function(emp){
   const [res,error]=await HR.call("jd.approve",{employee_email:emp});
   if(!error && res && !res.approved){ HR.buildJD(); return; }
-  if(error){ alert("Approve failed: "+error.message); return; }
+  if(error){ HR.error("Approve failed: "+error.message); return; }
   if(typeof toast==="function") toast("Approved & published"); HR.buildJD();
 };
 HR.rejectJD = async function(emp){
   const [,error]=await HR.call("jd.reject",{employee_email:emp});
-  if(error){ alert("Reject failed: "+error.message); return; }
+  if(error){ HR.error("Reject failed: "+error.message); return; }
   if(typeof toast==="function") toast("Rejected"); HR.buildJD();
 };
 
@@ -340,160 +340,504 @@ HR.buildHistory = async function(){
     <div class="hr-note" style="margin-top:10px;">Signed-off reviews open read-only. “Change” compares each review’s overall rating with the previous one.</div></div>`;
 };
 
+/* ============ Shared helpers for the routed forms (added after initial testing, Oct 2026) ============ */
+HR.today = function(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+HR.money = function(n){ return "£"+(Number(n)||0).toFixed(2); };
+HR.name = function(email){ return DB.personName(email)||email||""; };
+HR.dt = function(ts){ return ts?DB.fmtDate(ts,true):""; };
+
+/* A pop-up box in the page (replaces the browser's plain white alert/prompt boxes).
+   Resolves to false on Cancel, or true / the typed text on OK. */
+HR.modal = function(o){
+  o=o||{};
+  let m=document.getElementById("hr-modal");
+  if(!m){ m=document.createElement("div"); m.id="hr-modal"; m.setAttribute("role","dialog"); m.setAttribute("aria-modal","true"); document.body.appendChild(m); }
+  m.className=o.error?"error":"";
+  const input=o.input?(o.input==="textarea"?`<textarea id="hm-input" rows="3" placeholder="${DB.esc(o.placeholder||"")}"></textarea>`:`<input id="hm-input" placeholder="${DB.esc(o.placeholder||"")}">`):"";
+  m.innerHTML=`<div class="hm-card"><div class="hm-head">${DB.esc(o.title||(o.error?"Please check":"Confirm"))}</div>`
+    +`<div class="hm-body">${o.html||DB.esc(o.body||"")}${input?`<div style="white-space:normal;">${input}</div>`:""}<div id="hm-err" class="hr-errbox" style="margin:10px 0 0;"></div></div>`
+    +`<div class="hm-foot">${o.cancel===false?"":`<button class="hr-btn ghost" id="hm-cancel">${DB.esc(o.cancel||"Cancel")}</button>`}<button class="hr-btn ${o.okClass||""}" id="hm-ok">${DB.esc(o.ok||"OK")}</button></div></div>`;
+  m.classList.add("show");
+  return new Promise(resolve=>{
+    const close=v=>{ m.classList.remove("show"); document.removeEventListener("keydown",key); resolve(v); };
+    const key=e=>{ if(e.key==="Escape") close(false); };
+    document.addEventListener("keydown",key);
+    const c=document.getElementById("hm-cancel"); if(c) c.onclick=()=>close(false);
+    document.getElementById("hm-ok").onclick=()=>{
+      if(!o.input){ close(true); return; }
+      const v=(document.getElementById("hm-input").value||"").trim();
+      if(o.required && !v){ const e=document.getElementById("hm-err"); e.textContent=o.required; e.classList.add("show"); return; }
+      close(v||"");
+    };
+    const f=document.getElementById("hm-input")||document.getElementById("hm-ok"); if(f) f.focus();
+  });
+};
+HR.error = function(msg){ return HR.modal({title:"Something needs your attention",body:String(msg||""),error:true,ok:"OK",cancel:false}); };
+
+/* Check a form. Each check is {label, ok, el}; failing fields are outlined in red and listed
+   by name in a red box, so the message always matches what is actually missing. */
+HR.validate = function(boxId, checks){
+  const box=document.getElementById(boxId);
+  const scope=(box&&box.closest(".sdi-doc"))||document;
+  scope.querySelectorAll(".invalid").forEach(e=>e.classList.remove("invalid"));
+  const bad=checks.filter(c=>!c.ok);
+  bad.forEach(c=>{ (Array.isArray(c.el)?c.el:[c.el]).forEach(e=>{ if(e){ e.classList.add("invalid"); const clear=()=>{ e.classList.remove("invalid"); }; e.addEventListener("input",clear,{once:true}); e.addEventListener("change",clear,{once:true}); } }); });
+  if(!box) return !bad.length;
+  if(!bad.length){ box.classList.remove("show"); box.innerHTML=""; return true; }
+  const labels=[...new Set(bad.map(c=>c.label))];
+  box.innerHTML=`⚠ Please complete the following before submitting:<ul>${labels.map(l=>`<li>${DB.esc(l)}</li>`).join("")}</ul>`;
+  box.classList.add("show");
+  try{ box.scrollIntoView({behavior:"smooth",block:"center"}); }catch(e){}
+  return false;
+};
+HR.serverError = function(boxId, err){
+  const box=document.getElementById(boxId);
+  if(!box){ HR.error(err.message); return; }
+  box.innerHTML="⚠ "+DB.esc(err.message); box.classList.add("show");
+  try{ box.scrollIntoView({behavior:"smooth",block:"center"}); }catch(e){}
+};
+HR.val = function(id){ const e=document.getElementById(id); return e?(e.value||"").trim():""; };
+HR.radio = function(name){ return (document.querySelector('input[name="'+name+'"]:checked')||{}).value||""; };
+HR.opts = function(name,values,type,checked,extra){
+  return values.map(v=>`<label class="opt"><input type="${type||"radio"}" name="${name}" value="${DB.esc(v)}" ${(Array.isArray(checked)?checked.includes(v):checked===v)?"checked":""} ${extra||""}> <span>${DB.esc(v)}</span></label>`).join("");
+};
+HR.myRows = function(){ const me=HR.orgRow(DB.myEmail)||{}; const mgr=HR.orgRow(me.manager_email||"")||{}; return {me,mgr}; };
+HR.amFinance = function(){ const r=HR.orgRow(DB.myEmail); return !!(r&&r.is_finance); };
+HR.trailHtml = function(md){
+  const t=(md&&md.trail)||[];
+  if(!t.length) return "";
+  const lbl={authorised:"Authorised",rejected:"Rejected",approved:"Approved",payment_authorised:"Payment authorised",paid:"Marked as paid",trial:"Approved on trial",declined:"Declined",reviewed:"Reviewed"};
+  return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">⏱</span> Audit trail</div><div class="sfs-body"><ul class="trail">`
+    +t.map(e=>`<li><b>${DB.esc(lbl[e.status]||e.status)}</b> by ${DB.esc(HR.name(e.by))} · ${DB.esc(HR.dt(e.at))}${e.note?`<div class="hr-note" style="margin:2px 0 0;">“${DB.esc(e.note)}”</div>`:""}</li>`).join("")
+    +`</ul></div></div>`;
+};
+
+/* ---------- Self-Certification (employee submits; line manager authorises) ---------- */
 async function showSelfCert(){ hrShow("page-selfcert","selfcert"); await HR.buildSelfCert(); }
 HR.buildSelfCert = async function(){
   const el=document.getElementById("page-selfcert"); if(!el) return; if(HR.needCloud(el)) return;
-  const me=HR.orgRow(DB.myEmail)||{}; const mgr=HR.orgRow((me.manager_email||""))||{};
+  const {me,mgr}=HR.myRows();
   el.innerHTML=`<div class="sdi-doc">`
    +HR.hero("Service Desk Institute® · Confidential","Self-Certification Form","For sickness absences of <strong>7 calendar days or fewer</strong>. Complete on your return; it routes to "+DB.esc(mgr.full_name||"your line manager")+" for the return-to-work step.","Owner","Paul M Rodrigues")
    +HR.docBlock("self_cert")
+   +`<div class="hr-note">Fields marked <span class="req"></span> must be completed.</div>`
    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Employee details</div><div class="sfs-body">
        <div class="hr-grid2"><div class="hr-field"><label>Full name</label><input id="sc-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label>Line manager</label><input id="sc-mgr" value="${DB.esc(mgr.full_name||"")}" readonly></div></div></div></div>
      <div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Absence details</div><div class="sfs-body">
-       <div class="hr-grid3"><div class="hr-field"><label>First day of absence</label><input type="date" id="sc-first"></div><div class="hr-field"><label>Last day</label><input type="date" id="sc-last"></div><div class="hr-field"><label>Date returned</label><input type="date" id="sc-return"></div></div></div></div>
+       <div class="hr-grid3"><div class="hr-field"><label class="req">First day of absence</label><input type="date" id="sc-first"></div><div class="hr-field"><label class="req">Last day of absence</label><input type="date" id="sc-last"></div><div class="hr-field"><label class="req">Date returned</label><input type="date" id="sc-return"></div></div></div></div>
      <div class="sdi-form-sec"><div class="sfs-head"><span class="num">3</span> Reason &amp; cause</div><div class="sfs-body">
-       <div class="hr-field"><label>Reason for absence</label><textarea id="sc-reason" rows="2"></textarea></div>
+       <div class="hr-field"><label class="req">Reason for absence</label><textarea id="sc-reason" rows="2"></textarea></div>
        <div class="hr-grid2"><div class="hr-field"><label>Consulted a doctor?</label><select id="sc-doctor"><option>No</option><option>Yes</option></select></div><div class="hr-field"><label>Work-related?</label><select id="sc-work"><option>No</option><option>Yes</option></select></div></div></div></div>
      <div class="sdi-form-sec"><div class="sfs-head"><span class="num">4</span> Declaration</div><div class="sfs-body">
        <div class="sdi-decl">I certify that I was unable to work for the period shown because of the reason given, and that this information is true and complete. I understand that absences of more than 7 calendar days require a fit note, and that knowingly giving false information may be treated as a disciplinary matter.</div>
-       <div class="hr-field"><label>Signed — type your full name</label><input id="sc-sign" placeholder="Your full name"></div>
+       <div class="hr-field"><label class="req">Signed — type your full name</label><input id="sc-sign" placeholder="Your full name"></div>
+       <div id="sc-err" class="hr-errbox"></div>
        <button class="hr-btn" onclick="HR.submitSelfCert()">Submit${mgr.full_name?(" to "+DB.esc(mgr.full_name)):""}</button></div></div>
    </div><div id="sc-lists"></div>`;
   HR.renderSubs("self_cert","sc-lists");
 };
 HR.submitSelfCert = async function(){
-  const g=id=>document.getElementById(id);
-  if(!g("sc-first").value || !g("sc-sign").value){ alert("Enter the first day of absence and sign the declaration."); return; }
-  const data={name:g("sc-name").value,first:g("sc-first").value,last:g("sc-last").value,ret:g("sc-return").value,reason:g("sc-reason").value,doctor:g("sc-doctor").value,work:g("sc-work").value,signed:g("sc-sign").value,signDate:new Date().toISOString().slice(0,10)};
+  const g=id=>document.getElementById(id), v=HR.val;
+  const checks=[
+    {label:"First day of absence",ok:!!v("sc-first"),el:g("sc-first")},
+    {label:"Last day of absence",ok:!!v("sc-last"),el:g("sc-last")},
+    {label:"Date returned",ok:!!v("sc-return"),el:g("sc-return")},
+    {label:"Reason for absence",ok:!!v("sc-reason"),el:g("sc-reason")},
+    {label:"Declaration (type your full name)",ok:!!v("sc-sign"),el:g("sc-sign")}
+  ];
+  if(v("sc-first")&&v("sc-last")) checks.push({label:"The last day of absence cannot be before the first day",ok:v("sc-last")>=v("sc-first"),el:g("sc-last")});
+  if(v("sc-last")&&v("sc-return")) checks.push({label:"The date you returned cannot be before the last day of absence",ok:v("sc-return")>=v("sc-last"),el:g("sc-return")});
+  if(!HR.validate("sc-err",checks)) return;
+  const data={name:v("sc-name"),first:v("sc-first"),last:v("sc-last"),ret:v("sc-return"),reason:v("sc-reason"),doctor:g("sc-doctor").value,work:g("sc-work").value,signed:v("sc-sign")};
   const [,error]=await HR.call("submissions.create",{type:"self_cert",data});
-  if(error){ alert("Submit failed: "+error.message); return; }
+  if(error){ HR.serverError("sc-err",error); return; }
   if(typeof toast==="function") toast("Self-certification submitted"); HR.buildSelfCert();
 };
 
-/* ---------- Expense Claim (employee submits; line manager authorises) ---------- */
-async function showExpenses(){ hrShow("page-expenses","expenses"); await HR.buildExpenses(); }
-HR.buildExpenses = async function(){
-  const el=document.getElementById("page-expenses"); if(!el) return; if(HR.needCloud(el)) return;
-  const me=HR.orgRow(DB.myEmail)||{}; const mgr=HR.orgRow((me.manager_email||""))||{};
-  if(!HR._expItems) HR._expItems=[{date:"",cat:"Travel",desc:"",cc:"",amount:""}];
-  el.innerHTML=`<div class="sdi-doc">`
-   +HR.hero("Service Desk Institute® · Confidential","Expense Claim Form","Reclaim business expenses. Car mileage is reimbursed at <strong>35p per mile</strong>. Submits to "+DB.esc(mgr.full_name||"your line manager")+" for authorisation.","Owner","Paul M Rodrigues")
-   +HR.docBlock("expense")
-   +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Claimant details</div><div class="sfs-body">
-       <div class="hr-grid2"><div class="hr-field"><label>Full name</label><input id="ex-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label>Claim period / month</label><input id="ex-period" placeholder="e.g. July 2026"></div></div></div></div>
-     <div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Expense items</div><div class="sfs-body">
-       <table class="exp-tbl"><thead><tr><th>Date</th><th>Category</th><th>What it was for</th><th>Cost centre</th><th>Amount £</th><th></th></tr></thead><tbody id="ex-rows"></tbody></table>
-       <button class="hr-btn ghost" onclick="HR.addExpRow()">+ Add item</button>
-       <div class="hr-grid3" style="margin-top:12px;"><div class="hr-field"><label>Mileage (miles)</label><input id="ex-miles" type="number" oninput="HR.calcExp()"></div><div class="hr-field"><label>Mileage £ (35p/mi)</label><input id="ex-mileamt" readonly></div><div class="hr-field"><label>Total £</label><input id="ex-total" readonly></div></div></div></div>
-     <div class="sdi-form-sec"><div class="sfs-head"><span class="num">3</span> Declaration</div><div class="sfs-body">
-       <div class="sdi-decl">I certify that the expenses claimed were necessarily incurred by me wholly and exclusively for SDI business, that they comply with the Expenses policy, and that valid receipts or invoices are attached for each item. Submitting false or fabricated claims is gross misconduct.</div>
-       <div class="hr-field"><label>Signed — type your full name</label><input id="ex-sign" placeholder="Your full name"></div>
-       <button class="hr-btn" onclick="HR.submitExpense()">Submit for authorisation</button></div></div>
-   </div><div id="ex-lists"></div>`;
-  HR.renderExpRows(); HR.calcExp(); HR.renderSubs("expense","ex-lists");
-};
-HR.addExpRow = function(){ HR._expItems.push({date:"",cat:"Travel",desc:"",cc:"",amount:""}); HR.renderExpRows(); };
-HR.renderExpRows = function(){
-  const tb=document.getElementById("ex-rows"); if(!tb) return;
-  const cats=["Travel","Mileage","Accommodation","Subsistence","Equipment","Other"];
-  tb.innerHTML=HR._expItems.map((it,i)=>`<tr class="exp-row"><td><input type="date" value="${DB.esc(it.date)}" onchange="HR._expItems[${i}].date=this.value"></td><td><select onchange="HR._expItems[${i}].cat=this.value">${cats.map(c=>`<option ${c===it.cat?"selected":""}>${c}</option>`).join("")}</select></td><td><input value="${DB.esc(it.desc)}" oninput="HR._expItems[${i}].desc=this.value"></td><td><input value="${DB.esc(it.cc)}" oninput="HR._expItems[${i}].cc=this.value"></td><td><input type="number" value="${DB.esc(it.amount)}" oninput="HR._expItems[${i}].amount=this.value;HR.calcExp()"></td><td><button class="hr-btn ghost" style="padding:4px 8px;" onclick="HR._expItems.splice(${i},1);HR.renderExpRows();HR.calcExp();">×</button></td></tr>`).join("");
-};
-HR.calcExp = function(){
-  const miles=parseFloat((document.getElementById("ex-miles")||{}).value)||0, mile=miles*0.35;
-  const items=HR._expItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0);
-  const ma=document.getElementById("ex-mileamt"), tot=document.getElementById("ex-total");
-  if(ma) ma.value="£"+mile.toFixed(2); if(tot) tot.value="£"+(items+mile).toFixed(2);
-};
-HR.submitExpense = async function(){
-  const g=id=>document.getElementById(id);
-  if(!g("ex-sign").value){ alert("Sign the declaration to submit."); return; }
-  const miles=parseFloat(g("ex-miles").value)||0;
-  const total=+(HR._expItems.reduce((s,it)=>s+(parseFloat(it.amount)||0),0)+miles*0.35).toFixed(2);
-  const data={name:g("ex-name").value,period:g("ex-period").value,items:HR._expItems.slice(),miles,mileageAmt:+(miles*0.35).toFixed(2),total,signed:g("ex-sign").value,signDate:new Date().toISOString().slice(0,10)};
-  const [,error]=await HR.call("submissions.create",{type:"expense",data});
-  if(error){ alert("Submit failed: "+error.message); return; }
-  HR._expItems=[{date:"",cat:"Travel",desc:"",cc:"",amount:""}];
-  if(typeof toast==="function") toast("Expense claim submitted"); HR.buildExpenses();
-};
-
-/* ---------- shared: my submissions + manager "to authorise" list ---------- */
+/* ---------- shared lists: things to action, your own, and history you can see ---------- */
 HR.renderSubs = async function(type,mountId){
   const mount=document.getElementById(mountId); if(!mount) return;
-  const [sl]=await HR.call("submissions.list",{type}); const subs=(sl&&sl.items)||[];
+  const [sl,err]=await HR.call("submissions.list",{type}); const subs=(sl&&sl.items)||[];
+  if(err){ mount.innerHTML=`<div class="hr-errbox show">Couldn't load the list: ${DB.esc(err.message)}</div>`; return; }
   const mine=subs.filter(s=>(s.employee_email||"").toLowerCase()===DB.myEmail);
-  const toAction=subs.filter(s=>HR.iAmLineMgrOf(s.employee_email) && s.status==="submitted");
+  const toAction=subs.filter(s=>(s.employee_email||"").toLowerCase()!==DB.myEmail && (HR.iAmLineMgrOf(s.employee_email)||(DB.isAdmin&&!HR.orgRow(s.employee_email)?.manager_email)) && s.status==="submitted");
+  const others=subs.filter(s=>(s.employee_email||"").toLowerCase()!==DB.myEmail && !toAction.includes(s));
+  const plural={self_cert:"self-certifications",flex_work:"flexible working requests",dse:"DSE assessments"}[type]||"submissions";
   let html="";
-  if(toAction.length) html+=`<h3 style="margin-top:22px;">⚑ Awaiting your ${type==="dse"?"review":"authorisation"} (${toAction.length})</h3>`+toAction.map(s=>HR.subRow(s,type,true)).join("");
-  const plural={self_cert:"self-certifications",expense:"claims",flex_work:"flexible working requests",dse:"DSE assessments"}[type]||"submissions";
+  if(toAction.length) html+=`<h3 style="margin-top:22px;">⚑ Awaiting your ${type==="dse"?"review":(type==="flex_work"?"decision":"authorisation")} (${toAction.length})</h3>`+toAction.map(s=>HR.subRow(s,type,true)).join("");
   html+=`<h3 style="margin-top:22px;">Your ${plural}</h3>`+(mine.length?mine.map(s=>HR.subRow(s,type,false)).join(""):`<div class="hr-note">None yet.</div>`);
+  if(others.length) html+=`<h3 style="margin-top:22px;">📚 History — ${plural} you can see (${others.length})</h3><div class="hr-note">Previous requests and decisions for the people you manage or oversee. Open any one to see the full form and who decided it, and when.</div>`+others.map(s=>HR.subRow(s,type,false)).join("");
   mount.innerHTML=html;
 };
 HR.subRow = function(s,type,action){
-  const d=s.data||{};
+  const d=s.data||{}, m=s.manager_data||{};
   let summary;
-  if(type==="expense") summary="£"+((d.total!=null?d.total:0))+(d.period?(" · "+d.period):"");
-  else if(type==="flex_work") summary=((d.changeTypes&&d.changeTypes.length)?d.changeTypes.join(", "):"Flexible working request")+(d.effectiveDate?(" · from "+d.effectiveDate):"");
+  if(type==="flex_work") summary=((d.changeTypes&&d.changeTypes.length)?d.changeTypes.join(", "):"Flexible working request")+(d.effectiveDate?(" · from "+d.effectiveDate):"")+(d.duration?(" · "+d.duration+(d.endDate?(" to "+d.endDate):"")):"");
   else if(type==="dse") summary="Workstation self-assessment"+(d.date?(" · "+d.date):"");
-  else summary=((d.first||"?"))+" → "+(d.ret||d.last||"?");
-  const md=(s.manager_data&&s.manager_data.note)?`<div class="hr-note" style="margin:3px 0 0;">Manager note: ${DB.esc(s.manager_data.note)}</div>`:"";
+  else summary=((d.first||"?"))+" → "+(d.last||"?")+(d.ret?(" · returned "+d.ret):"");
+  const when="Submitted "+DB.fmtDate(s.submitted_at)+(s.decided_at?(" · "+(s.status)+" by "+HR.name(s.decided_by)+" on "+DB.fmtDate(s.decided_at)):"");
+  const note=m.note?`<div class="hr-note" style="margin:3px 0 0;">Manager note: ${DB.esc(m.note)}</div>`:"";
   let btns;
   if(type==="flex_work"||type==="dse"){
     btns=` <button class="hr-btn ghost" style="padding:4px 10px;" onclick="HR.openSubmission('${s.id}')">${action?(type==="dse"?"Review":"Decide"):"Open"}</button>`;
   } else {
     btns=action?` <button class="hr-btn approve" style="padding:4px 10px;" onclick="HR.decide('${s.id}','authorised')">Authorise</button> <button class="hr-btn reject" style="padding:4px 10px;" onclick="HR.decide('${s.id}','rejected')">Reject</button>`:"";
   }
-  return `<div class="hr-list-item"><div><b>${DB.esc(s.employee_email)}</b><div class="hr-note" style="margin:2px 0 0;">${DB.esc(summary)}</div>${md}</div><div style="display:flex;align-items:center;gap:8px;"><span class="hr-status ${s.status}">${s.status}</span>${btns}</div></div>`;
+  return `<div class="hr-list-item"><div><b>${DB.esc(HR.name(s.employee_email))}</b><div class="hr-note" style="margin:2px 0 0;">${DB.esc(summary)}</div><div class="hr-note" style="margin:2px 0 0;">${DB.esc(when)}</div>${note}</div><div style="display:flex;align-items:center;gap:8px;"><span class="hr-status ${s.status}">${DB.esc(s.status)}</span>${btns}</div></div>`;
 };
+/* Self-certification decision: a note box with Cancel, which really cancels. */
 HR.decide = async function(id,status){
-  const note=(prompt(status==="authorised"?"Optional note (e.g. return-to-work discussion held / approved):":"Optional reason for rejection:","")||"");
+  const note=await HR.modal({
+    title:status==="authorised"?"Authorise self-certification":"Reject self-certification",
+    body:status==="authorised"?"Add a note if you wish (for example, return-to-work discussion held).":"Please give the reason for rejecting.",
+    input:"textarea", required:status==="rejected"?"Enter a reason for rejecting.":"",
+    ok:status==="authorised"?"Authorise":"Reject", okClass:status==="authorised"?"approve":"reject"
+  });
+  if(note===false) return;   // Cancel: nothing happens
   const [,error]=await HR.call("submissions.decide",{id,status,note});
-  if(error){ alert("Update failed: "+error.message); return; }
+  if(error){ HR.error("Update failed: "+error.message); return; }
   if(typeof toast==="function") toast("Marked "+status);
-  if(document.getElementById("page-selfcert").classList.contains("active")) HR.buildSelfCert(); else HR.buildExpenses();
+  HR.buildSelfCert();
+};
+
+/* ============ Expense Claim (employee → line manager approves → finance authorises payment → paid) ============ */
+HR.EXP_CATS=["Travel (public or non-private)","Mileage","Accommodation","Subsistence","Equipment","Other"];
+HR.MILEAGE_RATE=0.35;
+HR._expFiles=[]; HR._cc=null; HR._ccManage=false;
+HR.EXP_STATUS={submitted:"Awaiting line manager",approved:"Approved – awaiting finance",authorised:"Approved – awaiting finance",payment_authorised:"Payment authorised",paid:"Paid",rejected:"Rejected"};
+HR.expBadge=function(st){ return `<span class="hr-status exp-${DB.esc(st)}">${DB.esc(HR.EXP_STATUS[st]||st)}</span>`; };
+HR.newExpItem=function(){ return {date:"",cat:"",desc:"",cc:"",miles:"",amount:"",receipt:""}; };
+HR.expMonths=function(){
+  const out=[], d=new Date(); d.setDate(1);
+  for(let i=0;i<13;i++){ out.push(d.toLocaleString("en-GB",{month:"long"})+" "+d.getFullYear()); d.setMonth(d.getMonth()-1); }
+  return out;
+};
+HR.loadCostCentres=async function(force){
+  if(HR._cc && !force) return HR._cc;
+  const [r]=await HR.call("costCentres.list");
+  HR._cc=((r&&r.items)||[]); HR._ccManage=!!(r&&r.can_manage);
+  return HR._cc;
+};
+async function showExpenses(){ hrShow("page-expenses","expenses"); await HR.buildExpenses(); }
+HR.buildExpenses = async function(){
+  const el=document.getElementById("page-expenses"); if(!el) return; if(HR.needCloud(el)) return;
+  const {me,mgr}=HR.myRows();
+  await HR.loadCostCentres();
+  if(!HR._expItems){ HR._expItems=[HR.newExpItem()]; HR._expFiles=[null]; }
+  const months=HR.expMonths();
+  el.innerHTML=`<div class="sdi-doc">`
+   +HR.hero("Service Desk Institute® · Confidential","Expense Claim Form","Reclaim business expenses. Car mileage is reimbursed at <strong>35p per mile</strong>. Your line manager approves the claim, then the finance team authorises payment.","Owner","Paul M Rodrigues")
+   +HR.docBlock("expense")
+   +(HR._ccManage?`<div style="text-align:right;margin-bottom:8px;"><button class="hr-btn ghost" onclick="HR.showCostCentres()">⚙ Manage cost centres</button></div>`:"")
+   +`<div class="hr-note">Fields marked <span class="req"></span> must be completed.</div>`
+   +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Claimant details</div><div class="sfs-body">
+       <div class="hr-grid2"><div class="hr-field"><label class="req">Full name</label><input id="ex-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div>
+       <div class="hr-field"><label class="req">Claim period / month</label><select id="ex-period"><option value="">Select month…</option>${months.map(m=>`<option ${HR._expPeriod===m?"selected":""}>${DB.esc(m)}</option>`).join("")}</select></div></div>
+       <div class="hr-field"><label>Line manager (approves)</label><input value="${DB.esc(mgr.full_name||"—")}" readonly></div></div></div>
+     <div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Expense items</div><div class="sfs-body">
+       <div class="hr-note">Add one line per item. For car mileage choose <b>Mileage</b>, enter the miles and say what the journey was for — the amount is worked out at 35p per mile. Use <b>Travel (public or non-private)</b> for trains, buses, taxis, flights, parking and similar.</div>
+       <div class="hist-wrap"><table class="exp-tbl"><thead><tr><th class="req">Date</th><th class="req">Category</th><th class="req">What it was for</th><th class="req">Cost centre</th><th>Miles</th><th class="req">Amount £</th><th class="req">Receipt attached?</th><th>Receipt file</th><th></th></tr></thead><tbody id="ex-rows"></tbody></table></div>
+       <button class="hr-btn ghost" onclick="HR.addExpRow()">+ Add item</button>
+       <div class="exp-total">Total amount claimed <b id="ex-total">£0.00</b></div></div></div>
+     <div class="sdi-form-sec"><div class="sfs-head"><span class="num">3</span> Declaration</div><div class="sfs-body">
+       <div class="sdi-decl">I certify that the expenses claimed were necessarily incurred by me wholly and exclusively for SDI business, that they comply with the Expenses policy, and that valid receipts or invoices are attached for each item marked as having one. Submitting false or fabricated claims is gross misconduct.</div>
+       <div class="hr-field"><div class="opt-group" id="ex-decl-wrap"><label class="opt"><input type="checkbox" id="ex-decl"> <span>I agree with the declaration above <span class="req"></span></span></label></div></div>
+       <div class="hr-field"><label class="req">Signed — type your full name</label><input id="ex-sign" placeholder="Your full name"></div>
+       <div id="ex-err" class="hr-errbox"></div>
+       <button class="hr-btn" id="ex-submit" onclick="HR.submitExpense()">Submit for approval</button></div></div>
+   </div><div id="ex-lists"></div>`;
+  document.getElementById("ex-period").onchange=function(){ HR._expPeriod=this.value; };
+  HR.renderExpRows(); HR.calcExp(); HR.renderExpenseLists("ex-lists");
+};
+HR.addExpRow = function(){ HR._expItems.push(HR.newExpItem()); HR._expFiles.push(null); HR.renderExpRows(); };
+HR.removeExpRow = function(i){ HR._expItems.splice(i,1); HR._expFiles.splice(i,1); if(!HR._expItems.length){ HR._expItems=[HR.newExpItem()]; HR._expFiles=[null]; } HR.renderExpRows(); HR.calcExp(); };
+HR.setExp = function(i,k,v){
+  const it=HR._expItems[i]; it[k]=v;
+  if(k==="cat"||k==="receipt"){ HR.renderExpRows(); }
+  if(k==="miles"){ const a=document.getElementById("ex-amt-"+i); if(a) a.value=(parseFloat(v)>0)?(parseFloat(v)*HR.MILEAGE_RATE).toFixed(2):""; }
+  HR.calcExp();
+};
+HR.setExpFile = function(i,input){ HR._expFiles[i]=(input.files&&input.files[0])||null; };
+HR.renderExpRows = function(){
+  const tb=document.getElementById("ex-rows"); if(!tb) return;
+  const ccNames=(HR._cc||[]).map(c=>c.name);
+  tb.innerHTML=HR._expItems.map((it,i)=>{
+    const mileage=it.cat==="Mileage";
+    const ccOpts=[...ccNames]; if(it.cc && !ccOpts.includes(it.cc)) it.cc="";
+    const f=HR._expFiles[i];
+    return `<tr class="exp-row" data-i="${i}">
+      <td style="min-width:120px;"><input type="date" id="ex-date-${i}" value="${DB.esc(it.date)}" onchange="HR.setExp(${i},'date',this.value)"></td>
+      <td style="min-width:150px;"><select id="ex-cat-${i}" onchange="HR.setExp(${i},'cat',this.value)"><option value="">Select…</option>${HR.EXP_CATS.map(c=>`<option ${c===it.cat?"selected":""}>${DB.esc(c)}</option>`).join("")}</select></td>
+      <td style="min-width:160px;"><input id="ex-desc-${i}" value="${DB.esc(it.desc)}" placeholder="${mileage?"Journey from / to and purpose":"What it was for"}" oninput="HR.setExp(${i},'desc',this.value)"></td>
+      <td style="min-width:140px;"><select id="ex-cc-${i}" onchange="HR.setExp(${i},'cc',this.value)"><option value="">Select…</option>${ccOpts.map(c=>`<option ${c===it.cc?"selected":""}>${DB.esc(c)}</option>`).join("")}</select></td>
+      <td style="width:80px;">${mileage?`<input type="number" min="0" step="0.1" id="ex-miles-${i}" value="${DB.esc(it.miles)}" oninput="HR.setExp(${i},'miles',this.value)">`:`<span class="hr-note">—</span>`}</td>
+      <td style="width:95px;">${mileage?`<input id="ex-amt-${i}" value="${(parseFloat(it.miles)>0)?(parseFloat(it.miles)*HR.MILEAGE_RATE).toFixed(2):""}" readonly title="Miles × 35p">`:`<input type="number" min="0" step="0.01" id="ex-amt-${i}" value="${DB.esc(it.amount)}" oninput="HR.setExp(${i},'amount',this.value)">`}</td>
+      <td style="width:90px;"><select id="ex-rec-${i}" onchange="HR.setExp(${i},'receipt',this.value)"><option value="">Select…</option><option ${it.receipt==="Yes"?"selected":""}>Yes</option><option ${it.receipt==="No"?"selected":""}>No</option></select></td>
+      <td style="min-width:150px;">${it.receipt==="Yes"?`<input type="file" id="ex-file-${i}" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onchange="HR.setExpFile(${i},this)">${f?`<div class="hr-note" style="margin:2px 0 0;">Chosen: ${DB.esc(f.name)}</div>`:""}`:`<span class="hr-note">${it.receipt==="No"?"No receipt":"—"}</span>`}</td>
+      <td><button class="hr-btn ghost" style="padding:4px 8px;" title="Remove this line" onclick="HR.removeExpRow(${i})">×</button></td></tr>`;
+  }).join("");
+};
+HR.expItemAmount = function(it){ return it.cat==="Mileage" ? (parseFloat(it.miles)||0)*HR.MILEAGE_RATE : (parseFloat(it.amount)||0); };
+HR.calcExp = function(){
+  const tot=HR._expItems.reduce((s,it)=>s+Math.round(HR.expItemAmount(it)*100)/100,0);
+  const t=document.getElementById("ex-total"); if(t) t.textContent=HR.money(tot);
+  return tot;
+};
+HR.submitExpense = async function(){
+  const g=id=>document.getElementById(id), v=HR.val;
+  const checks=[
+    {label:"Full name",ok:!!v("ex-name"),el:g("ex-name")},
+    {label:"Claim period / month",ok:!!v("ex-period"),el:g("ex-period")}
+  ];
+  HR._expItems.forEach((it,i)=>{
+    const n="Item "+(i+1)+": ";
+    checks.push({label:n+"date",ok:!!it.date,el:g("ex-date-"+i)});
+    checks.push({label:n+"category",ok:!!it.cat,el:g("ex-cat-"+i)});
+    checks.push({label:n+(it.cat==="Mileage"?"what the mileage was for":"what it was for"),ok:!!(it.desc||"").trim(),el:g("ex-desc-"+i)});
+    checks.push({label:n+"cost centre",ok:!!it.cc,el:g("ex-cc-"+i)});
+    if(it.cat==="Mileage") checks.push({label:n+"miles",ok:parseFloat(it.miles)>0,el:g("ex-miles-"+i)});
+    else if(it.cat) checks.push({label:n+"amount",ok:parseFloat(it.amount)>0,el:g("ex-amt-"+i)});
+    checks.push({label:n+"receipt attached? (Yes or No)",ok:!!it.receipt,el:g("ex-rec-"+i)});
+    if(it.receipt==="Yes") checks.push({label:n+"choose the receipt file (or change to No)",ok:!!HR._expFiles[i],el:g("ex-file-"+i)});
+    const f=HR._expFiles[i];
+    if(it.receipt==="Yes" && f){
+      checks.push({label:n+"receipt must be a PDF, JPG or PNG",ok:/\.(pdf|jpe?g|png)$/i.test(f.name),el:g("ex-file-"+i)});
+      checks.push({label:n+"receipt file is larger than 10 MB",ok:f.size<=10*1024*1024,el:g("ex-file-"+i)});
+    }
+  });
+  checks.push({label:"Declaration tick box",ok:g("ex-decl").checked,el:g("ex-decl-wrap")});
+  checks.push({label:"Declaration (type your full name)",ok:!!v("ex-sign"),el:g("ex-sign")});
+  if(!HR.validate("ex-err",checks)) return;
+  const items=HR._expItems.map(it=>({date:it.date,cat:it.cat,desc:(it.desc||"").trim(),cc:it.cc,miles:it.cat==="Mileage"?it.miles:"",amount:it.cat==="Mileage"?"":it.amount,receipt:it.receipt}));
+  const data={name:v("ex-name"),period:v("ex-period"),items,declAgree:true,signed:v("ex-sign")};
+  const btn=g("ex-submit"); if(btn){ btn.disabled=true; btn.textContent="Submitting…"; }
+  const [res,error]=await HR.call("submissions.create",{type:"expense",data});
+  if(error){ if(btn){ btn.disabled=false; btn.textContent="Submit for approval"; } HR.serverError("ex-err",error); return; }
+  const failed=[];
+  for(let i=0;i<HR._expFiles.length;i++){
+    const f=HR._expFiles[i]; if(!f || HR._expItems[i].receipt!=="Yes") continue;
+    try{ await HR.uploadFile(res.id,i,f); }catch(e){ failed.push("Item "+(i+1)+" ("+f.name+"): "+e.message); }
+  }
+  HR._expItems=null; HR._expFiles=[]; HR._expPeriod="";
+  if(failed.length) await HR.error("Your claim was submitted, but these receipts did not upload:\n\n"+failed.join("\n")+"\n\nOpen the claim under “Your claims” and use “Add receipt” to try again.");
+  else if(typeof toast==="function") toast("Expense claim submitted");
+  HR.buildExpenses();
+};
+HR.uploadFile = async function(submissionId,itemIndex,file){
+  const fd=new FormData(); fd.append("submission_id",submissionId); if(itemIndex!=null) fd.append("item",String(itemIndex)); fd.append("file",file);
+  let res;
+  try{ res=await fetch("upload.php",{method:"POST",credentials:"same-origin",headers:{"X-CSRF-Token":DB.csrf()},body:fd}); }
+  catch(e){ throw new Error("Couldn't reach the server."); }
+  let out={}; try{ out=await res.json(); }catch(e){}
+  if(out && out.signed_out){ location.href="login.php"; throw new Error("Your session has ended."); }
+  if(!res.ok||!out.ok) throw new Error((out&&out.error)||("Upload failed ("+res.status+")."));
+  return out.data.file;
+};
+
+/* Lists on the expenses page: approvals, finance queues, your claims and the full history. */
+HR._expFilter={who:"",status:""};
+HR.renderExpenseLists = async function(mountId){
+  const mount=document.getElementById(mountId); if(!mount) return;
+  const [sl,err]=await HR.call("submissions.list",{type:"expense"});
+  if(err){ mount.innerHTML=`<div class="hr-errbox show">Couldn't load claims: ${DB.esc(err.message)}</div>`; return; }
+  const subs=(sl&&sl.items)||[], fin=!!(sl&&sl.is_finance);
+  const notMine=s=>(s.employee_email||"").toLowerCase()!==DB.myEmail;
+  const toApprove=subs.filter(s=>notMine(s) && s.status==="submitted" && (HR.iAmLineMgrOf(s.employee_email)||(DB.isAdmin&&!HR.orgRow(s.employee_email)?.manager_email)));
+  const toAuthorise=fin?subs.filter(s=>notMine(s) && (s.status==="approved"||s.status==="authorised")):[];
+  const toPay=fin?subs.filter(s=>notMine(s) && s.status==="payment_authorised"):[];
+  const mine=subs.filter(s=>!notMine(s));
+  const others=subs.filter(notMine);
+  let html="";
+  const block=(title,list,note)=>list.length?`<h3 style="margin-top:22px;">${title} (${list.length})</h3>${note?`<div class="hr-note">${note}</div>`:""}`+HR.expTable(list,true):"";
+  html+=block("⚑ Awaiting your approval",toApprove,"Open a claim to review every line and receipt before approving or rejecting it.");
+  html+=block("💷 Approved — awaiting payment authorisation",toAuthorise,"Approved by the line manager. Review and authorise payment, or reject.");
+  html+=block("✅ Payment authorised — to be paid",toPay,"Mark each claim as paid once the payment has been made.");
+  html+=`<h3 style="margin-top:22px;">Your claims</h3>`+(mine.length?HR.expTable(mine,false):`<div class="hr-note">None yet.</div>`);
+  if(others.length){
+    const people=[...new Set(others.map(s=>(s.employee_email||"").toLowerCase()))].sort((a,b)=>HR.name(a).localeCompare(HR.name(b)));
+    const f=HR._expFilter;
+    const shown=others.filter(s=>(!f.who||(s.employee_email||"").toLowerCase()===f.who)&&(!f.status||s.status===f.status||(f.status==="approved"&&s.status==="authorised")));
+    html+=`<h3 style="margin-top:22px;">📚 Expense history (${others.length})</h3>`
+      +`<div class="hr-note">Every claim you can see — for the people you manage (and the managers below you)${fin?", and for everyone as finance":""} — with who approved it, whether payment was authorised and whether it has been paid. Open any claim to review it in full.</div>`
+      +`<div class="hr-filter"><select onchange="HR._expFilter.who=this.value;HR.renderExpenseLists('${mountId}')"><option value="">Everyone</option>${people.map(p=>`<option value="${DB.esc(p)}" ${f.who===p?"selected":""}>${DB.esc(HR.name(p))}</option>`).join("")}</select>`
+      +`<select onchange="HR._expFilter.status=this.value;HR.renderExpenseLists('${mountId}')"><option value="">Any status</option>${["submitted","approved","payment_authorised","paid","rejected"].map(st=>`<option value="${st}" ${f.status===st?"selected":""}>${DB.esc(HR.EXP_STATUS[st])}</option>`).join("")}</select></div>`
+      +(shown.length?HR.expTable(shown,true):`<div class="hr-note">No claims match.</div>`);
+  }
+  mount.innerHTML=html;
+};
+HR.expTable = function(list,showWho){
+  const rows=list.map(s=>{
+    const d=s.data||{}, m=s.manager_data||{};
+    const lm=m.lm?`${m.lm.decision==="rejected"?"Rejected":"Approved"} by ${HR.name(m.lm.by)}<br><span class="hr-note">${DB.fmtDate(m.lm.at)}</span>`:(s.status==="authorised"?`Approved by ${HR.name(s.decided_by)}<br><span class="hr-note">${DB.fmtDate(s.decided_at)}</span>`:"—");
+    const fn=m.finance?`${m.finance.decision==="rejected"?"Rejected":"Authorised"} by ${HR.name(m.finance.by)}<br><span class="hr-note">${DB.fmtDate(m.finance.at)}</span>`:"—";
+    const paid=m.paid?`${DB.esc(DB.fmtDate(m.paid.on||m.paid.at))}`:"—";
+    return `<tr>${showWho?`<td><b>${DB.esc(HR.name(s.employee_email))}</b></td>`:""}<td>${DB.esc(d.period||"—")}</td><td><b>${HR.money(d.total)}</b></td><td>${DB.esc(DB.fmtDate(s.submitted_at))}</td><td>${HR.expBadge(s.status)}</td><td style="font-size:11.5px;">${lm}</td><td style="font-size:11.5px;">${fn}</td><td>${paid}</td><td><button class="hr-btn ghost" style="padding:4px 10px;" onclick="HR.openExpense('${s.id}')">Review</button></td></tr>`;
+  }).join("");
+  return `<div class="hist-wrap"><table class="hist-tbl"><thead><tr>${showWho?"<th>Employee</th>":""}<th>Period</th><th>Total</th><th>Submitted</th><th>Status</th><th>Line manager</th><th>Finance</th><th>Paid</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+};
+
+/* Full claim, with the right actions for whoever is looking at it. */
+HR.openExpense = async function(id){
+  const el=document.getElementById("page-expenses"); if(!el) return;
+  const [sg,err]=await HR.call("submissions.get",{id}); const s=(sg&&sg.item)||null;
+  if(!s){ HR.error(err?err.message:"That claim was not found."); return; }
+  const d=s.data||{}, m=s.manager_data||{}, files=s.files||[];
+  const emp=(s.employee_email||"").toLowerCase(), mine=emp===DB.myEmail;
+  const isLM=HR.iAmLineMgrOf(emp)||(DB.isAdmin&&!HR.orgRow(emp)?.manager_email);
+  const fin=HR.amFinance();
+  const fileLinks=i=>files.filter(f=>f.item_index===i).map(f=>`<a href="file.php?id=${encodeURIComponent(f.id)}" target="_blank" rel="noopener">📎 ${DB.esc(f.name)}</a>`).join("<br>");
+  const items=(d.items||[]).map((it,i)=>`<tr><td>${DB.esc(it.date||"")}</td><td>${DB.esc(it.cat||"")}</td><td>${DB.esc(it.desc||"")}</td><td>${DB.esc(it.cc||"")}</td><td>${it.miles?DB.esc(String(it.miles)):"—"}</td><td style="text-align:right;">${HR.money(it.amount)}</td><td>${DB.esc(it.receipt||"—")}</td><td style="font-size:11.5px;">${fileLinks(i)||(it.receipt==="Yes"?`<span style="color:#b91c1c;">Not uploaded</span>`:"")}</td></tr>`).join("");
+  const legacy=(d.miles>0)?`<tr><td colspan="4">Mileage (older claim format)</td><td>${DB.esc(String(d.miles))}</td><td style="text-align:right;">${HR.money(d.mileageAmt)}</td><td colspan="2"></td></tr>`:"";
+  const loose=files.filter(f=>f.item_index==null).map(f=>`<a href="file.php?id=${encodeURIComponent(f.id)}" target="_blank" rel="noopener">📎 ${DB.esc(f.name)}</a>`).join(" · ");
+  let action="";
+  const st=s.status==="authorised"?"approved":s.status;
+  if(!mine && isLM && st==="submitted"){
+    action=HR.expActionBox("Line manager approval","Approve this claim to send it to the finance team, or reject it with a reason.",[["approve","✓ Approve","approve"],["reject","✗ Reject","reject"]],id);
+  } else if(!mine && fin && st==="approved"){
+    action=HR.expActionBox("Finance — authorise payment","Check the claim and receipts, then authorise payment or reject it with a reason.",[["authorise_payment","✓ Authorise payment","approve"],["reject","✗ Reject","reject"]],id);
+  } else if(!mine && fin && st==="payment_authorised"){
+    action=HR.expActionBox("Finance — record payment","Enter the date the payment was made.",[["mark_paid","✓ Mark as paid","approve"]],id,true);
+  }
+  if(mine && s.status==="submitted"){
+    action+=`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">+</span> Add a receipt</div><div class="sfs-body">
+      <div class="hr-grid2"><div class="hr-field"><label>Which line is it for?</label><select id="exa-item">${(d.items||[]).map((it,i)=>`<option value="${i}">Item ${i+1}: ${DB.esc(it.desc||it.cat||"")}</option>`).join("")}<option value="">The whole claim</option></select></div>
+      <div class="hr-field"><label>File (PDF, JPG or PNG, up to 10 MB)</label><input type="file" id="exa-file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div></div>
+      <div id="exa-err" class="hr-errbox"></div><button class="hr-btn" onclick="HR.addReceipt('${s.id}')">Upload receipt</button></div></div>`;
+  }
+  el.innerHTML=`<div class="sdi-doc"><div style="margin-bottom:12px;"><button class="hr-btn ghost" onclick="HR.buildExpenses()">← Back to expenses</button></div>`
+    +HR.hero("Service Desk Institute® · Expense Claim","Expense claim — "+(d.period||""),"Claimed by "+DB.esc(HR.name(emp))+" · submitted "+DB.esc(DB.fmtDate(s.submitted_at)),"Total",HR.money(d.total))
+    +`<div style="margin-bottom:10px;">Status: ${HR.expBadge(s.status)}</div>`
+    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Claimant</div><div class="sfs-body"><div class="hr-grid2">${HR.ro("Full name",d.name)}${HR.ro("Claim period / month",d.period)}</div></div></div>`
+    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Expense items</div><div class="sfs-body"><div class="hist-wrap"><table class="hist-tbl"><thead><tr><th>Date</th><th>Category</th><th>What it was for</th><th>Cost centre</th><th>Miles</th><th>Amount</th><th>Receipt?</th><th>File</th></tr></thead><tbody>${items}${legacy}</tbody></table></div>`
+    +`<div class="exp-total">Total amount claimed <b>${HR.money(d.total)}</b></div>${loose?`<div class="hr-note">Other attachments: ${loose}</div>`:""}</div></div>`
+    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">3</span> Declaration</div><div class="sfs-body">${HR.ro("Signed",(d.signed||"")+(d.signDate?(" · "+d.signDate):""))}</div></div>`
+    +HR.trailHtml(m)+action+`</div>`;
+  try{ window.scrollTo(0,0); }catch(e){}
+};
+HR.expActionBox = function(title,intro,buttons,id,paidDate){
+  return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">✓</span> ${DB.esc(title)}</div><div class="sfs-body">
+    <div class="hr-note">${DB.esc(intro)}</div>
+    ${paidDate?`<div class="hr-field"><label class="req">Date paid</label><input type="date" id="exa-paid" value="${HR.today()}"></div>`:""}
+    <div class="hr-field"><label>Comment${buttons.some(b=>b[0]==="reject")?" (required if rejecting)":" (optional)"}</label><textarea id="exa-note" rows="2"></textarea></div>
+    <div id="exa-err" class="hr-errbox"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">${buttons.map(b=>`<button class="hr-btn ${b[2]}" onclick="HR.expenseStep('${id}','${b[0]}')">${b[1]}</button>`).join("")}<button class="hr-btn ghost" onclick="HR.buildExpenses()">Cancel</button></div></div></div>`;
+};
+HR.expenseStep = async function(id,step){
+  const note=HR.val("exa-note");
+  const checks=[];
+  if(step==="reject") checks.push({label:"A comment explaining why the claim is rejected",ok:!!note,el:document.getElementById("exa-note")});
+  if(step==="mark_paid") checks.push({label:"Date paid",ok:!!HR.val("exa-paid"),el:document.getElementById("exa-paid")});
+  if(!HR.validate("exa-err",checks)) return;
+  const params={id,step,note}; if(step==="mark_paid") params.paid_on=HR.val("exa-paid");
+  const [res,error]=await HR.call("submissions.expenseAction",params);
+  if(error){ HR.serverError("exa-err",error); return; }
+  if(typeof toast==="function") toast("Claim: "+(HR.EXP_STATUS[res.status]||res.status));
+  HR.openExpense(id);
+};
+HR.addReceipt = async function(id){
+  const fi=document.getElementById("exa-file"), f=fi&&fi.files&&fi.files[0];
+  if(!HR.validate("exa-err",[{label:"Choose a file to upload",ok:!!f,el:fi}])) return;
+  const item=HR.val("exa-item");
+  try{ await HR.uploadFile(id,item===""?null:parseInt(item,10),f); }catch(e){ HR.serverError("exa-err",e); return; }
+  if(typeof toast==="function") toast("Receipt uploaded"); HR.openExpense(id);
+};
+
+/* Finance team: manage the cost centre list. */
+HR.showCostCentres = async function(){
+  const el=document.getElementById("page-expenses"); if(!el) return;
+  await HR.loadCostCentres(true);
+  el.innerHTML=`<div class="sdi-doc"><div style="margin-bottom:12px;"><button class="hr-btn ghost" onclick="HR.buildExpenses()">← Back to expenses</button></div>`
+    +HR.hero("Service Desk Institute® · Finance","Cost centres","The list offered on every expense claim. Renaming or deleting a cost centre does not change claims already submitted.","","")
+    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Current cost centres</div><div class="sfs-body">`
+    +((HR._cc||[]).map(c=>`<div class="cc-row"><input id="cc-${c.id}" value="${DB.esc(c.name)}" maxlength="100"><button class="hr-btn" onclick="HR.saveCostCentre(${c.id})">Save</button><button class="hr-btn reject" onclick="HR.removeCostCentre(${c.id})">Delete</button></div>`).join("")||`<div class="hr-note">No cost centres yet.</div>`)
+    +`</div></div><div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Add a cost centre</div><div class="sfs-body"><div class="cc-row"><input id="cc-new" placeholder="Name" maxlength="100"><button class="hr-btn" onclick="HR.saveCostCentre(null)">+ Add</button></div><div id="cc-err" class="hr-errbox"></div></div></div></div>`;
+};
+HR.saveCostCentre = async function(id){
+  const name=HR.val(id==null?"cc-new":"cc-"+id);
+  if(!HR.validate("cc-err",[{label:"Enter a name for the cost centre",ok:!!name,el:document.getElementById(id==null?"cc-new":"cc-"+id)}])) return;
+  const p={name}; if(id!=null) p.id=String(id);
+  const [,error]=await HR.call("costCentres.save",p);
+  if(error){ HR.serverError("cc-err",error); return; }
+  if(typeof toast==="function") toast("Cost centres updated"); HR.showCostCentres();
+};
+HR.removeCostCentre = async function(id){
+  const c=(HR._cc||[]).find(x=>x.id===id);
+  if(!(await HR.modal({title:"Delete cost centre",body:"Delete “"+(c?c.name:"")+"”? It will no longer be offered on new claims. Past claims keep it.",ok:"Delete",okClass:"reject"}))) return;
+  const [,error]=await HR.call("costCentres.remove",{id:String(id)});
+  if(error){ HR.serverError("cc-err",error); return; }
+  if(typeof toast==="function") toast("Cost centre deleted"); HR.showCostCentres();
 };
 
 /* ============ Flexible Working Request (type flex_work) ============ */
-HR.FW_CHANGES=["Reduced hours","Compressed hours","Different start / finish times","Different working days","Working from home","Job share","Other"];
+HR.FW_CHANGES=["Reduced hours","Compressed hours","Different start / finish times","Different working days","Change of location","Job share","Other"];
 HR.FW_REASONS=["Burden of additional costs","Detrimental effect on meeting customer demand","Inability to reorganise work among existing staff","Inability to recruit additional staff","Detrimental impact on quality","Detrimental impact on performance","Insufficient work during proposed periods","Planned structural changes"];
 async function showFlexWork(){ hrShow("page-flexwork","flexwork"); await HR.buildFlexWork(); }
 HR.buildFlexWork = async function(){
   const el=document.getElementById("page-flexwork"); if(!el) return; if(HR.needCloud(el)) return;
-  const me=HR.orgRow(DB.myEmail)||{}; const mgr=HR.orgRow((me.manager_email||""))||{};
-  const chk=HR.FW_CHANGES.map(c=>`<label style="display:block;margin:4px 0;font-size:12.5px;"><input type="checkbox" class="fw-chg" value="${DB.esc(c)}"> ${DB.esc(c)}</label>`).join("");
+  const {me,mgr}=HR.myRows();
   el.innerHTML=`<div class="sdi-doc">`
    +HR.hero("Service Desk Institute® · Flexible Working · Statutory Request","Flexible Working Request","A statutory request to change how, when or where you work — a day-one right. Routes to "+DB.esc(mgr.full_name||"your line manager")+" for a decision.","Owner","Paul M Rodrigues")
    +HR.docBlock("flex_work")
+   +`<div class="hr-note">Fields marked <span class="req"></span> must be completed.</div>`
    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Your details</div><div class="sfs-body">
-     <div class="hr-grid2"><div class="hr-field"><label>Full name</label><input id="fw-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label>Job title</label><input id="fw-jobtitle" value=""></div></div>
-     <div class="hr-grid2"><div class="hr-field"><label>Department</label><input id="fw-dept" value="${DB.esc(me.department||"")}"></div><div class="hr-field"><label>Line manager</label><input id="fw-mgr" value="${DB.esc(mgr.full_name||"")}" readonly></div></div>
-     <div class="hr-field"><label>Date of this request</label><input type="date" id="fw-reqdate"></div></div></div>
+     <div class="hr-grid2"><div class="hr-field"><label class="req">Full name</label><input id="fw-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label class="req">Job title</label><input id="fw-jobtitle" value="${DB.esc(me.job_title||"")}"></div></div>
+     <div class="hr-grid2"><div class="hr-field"><label class="req">Department</label><input id="fw-dept" value="${DB.esc(me.department||"")}"></div><div class="hr-field"><label>Line manager</label><input id="fw-mgr" value="${DB.esc(mgr.full_name||"")}" readonly></div></div>
+     ${(!me.job_title||!me.department)?`<div class="hr-field-hint">Job title and department fill in automatically once an admin adds them to your details in Manage Team.</div>`:""}
+     <div class="hr-field"><label class="req">Date of this request</label><input type="date" id="fw-reqdate" value="${HR.today()}"></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">2</span> Your current working pattern</div><div class="sfs-body">
-     <div class="hr-field"><label>Describe your current days, hours and place of work</label><textarea id="fw-current" rows="2" placeholder="e.g. Mon–Fri, 9:00–17:30, fully remote…"></textarea></div></div></div>
+     <div class="hr-field"><label class="req">Describe your current days, hours and place of work</label><textarea id="fw-current" rows="2" placeholder="e.g. Mon–Fri, 9:00–17:30, office-based in…"></textarea></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">3</span> The change you are requesting</div><div class="sfs-body">
-     <div class="hr-field"><label>Type of change (tick all that apply)</label>${chk}</div>
-     <div class="hr-field"><label>Describe the new working pattern you would like</label><textarea id="fw-newpattern" rows="2" placeholder="Set out the exact days, hours and location you are proposing…"></textarea></div>
-     <div class="hr-field"><label>Date you would like the change to take effect</label><input type="date" id="fw-effective"></div></div></div>
+     <div class="hr-field"><label class="req">Type of change (tick all that apply)</label><div class="opt-group" id="fw-chg-wrap">${HR.opts("fw-chg",HR.FW_CHANGES,"checkbox",[])}</div></div>
+     <div class="hr-field"><label class="req">Describe the new working pattern you would like</label><textarea id="fw-newpattern" rows="2" placeholder="Set out the exact days, hours and location you are proposing…"></textarea></div>
+     <div class="hr-field"><label class="req">Date you would like the change to take effect</label><input type="date" id="fw-effective"></div>
+     <div class="hr-field"><label class="req">Is this a permanent or temporary change?</label><div class="opt-group" id="fw-dur-wrap">${HR.opts("fw-dur",["Permanent","Temporary"],"radio","",`onchange="HR.fwToggle()"`)}</div></div>
+     <div class="hr-field" id="fw-end-row" style="display:none;"><label class="req">End date of the temporary change</label><input type="date" id="fw-enddate"></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">4</span> Statutory statement &amp; previous requests</div><div class="sfs-body">
-     <label style="display:block;font-size:12.5px;margin-bottom:8px;"><input type="checkbox" id="fw-statutory"> I confirm that this is a statutory request for flexible working.</label>
-     <div class="hr-field"><label>Have you made a flexible working request in the last 12 months?</label><label style="font-size:12.5px;margin-right:14px;"><input type="radio" name="fw-prev" value="No" checked> No</label><label style="font-size:12.5px;"><input type="radio" name="fw-prev" value="Yes"> Yes</label></div>
-     <div class="hr-field"><label>If yes, date of that request</label><input type="date" id="fw-prevdate"></div></div></div>
+     <div class="hr-field"><div class="opt-group" id="fw-stat-wrap"><label class="opt"><input type="checkbox" id="fw-statutory"> <span>I confirm that this is a statutory request for flexible working. <span class="req"></span></span></label></div></div>
+     <div class="hr-field"><label class="req">Have you made a flexible working request in the last 12 months?</label><div class="opt-group" id="fw-prev-wrap">${HR.opts("fw-prev",["No","Yes"],"radio","",`onchange="HR.fwToggle()"`)}</div></div>
+     <div class="hr-field" id="fw-prev-row" style="display:none;"><label class="req">Date of that request</label><input type="date" id="fw-prevdate"><div class="hr-field-hint">So we know which earlier request you mean.</div></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">5</span> Effect on the business</div><div class="sfs-body">
      <div class="hr-field"><label>What effect, if any, would this change have on SDI — and how could that be dealt with? (optional)</label><textarea id="fw-effect" rows="2" placeholder="e.g. impact on cover, meetings, customers — and your suggestions…"></textarea></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">6</span> Declaration</div><div class="sfs-body">
      <div class="sdi-decl">The information I have given on this form is correct and complete. I understand that if my request is approved the change may first be made on a trial or fixed-term basis, and that a permanent change to my contract will only be made after a formal review and written agreement from both parties.</div>
-     <div class="hr-field"><label>Signed — type your full name</label><input id="fw-sign" placeholder="Your full name"></div>
+     <div class="hr-field"><label class="req">Signed — type your full name</label><input id="fw-sign" placeholder="Your full name"></div>
+     <div id="fw-err" class="hr-errbox"></div>
      <button class="hr-btn" onclick="HR.submitFlexWork()">Submit${mgr.full_name?(" to "+DB.esc(mgr.full_name)):""}</button></div></div>
    </div><div id="fw-lists"></div>`;
   HR.renderSubs("flex_work","fw-lists");
 };
+HR.fwToggle = function(){
+  const tmp=HR.radio("fw-dur")==="Temporary", prev=HR.radio("fw-prev")==="Yes";
+  const e=document.getElementById("fw-end-row"); if(e) e.style.display=tmp?"":"none";
+  const p=document.getElementById("fw-prev-row"); if(p) p.style.display=prev?"":"none";
+};
 HR.submitFlexWork = async function(){
-  const g=id=>document.getElementById(id);
-  if(!g("fw-sign").value){ alert("Sign the declaration to submit."); return; }
-  const changeTypes=[...document.querySelectorAll(".fw-chg:checked")].map(c=>c.value);
-  const prev=(document.querySelector('input[name="fw-prev"]:checked')||{}).value||"No";
-  const data={ name:g("fw-name").value, jobTitle:g("fw-jobtitle").value, dept:g("fw-dept").value, mgr:g("fw-mgr").value, reqDate:g("fw-reqdate").value, currentPattern:g("fw-current").value, changeTypes, newPattern:g("fw-newpattern").value, effectiveDate:g("fw-effective").value, statutory:g("fw-statutory").checked, prevRequest:prev, prevDate:g("fw-prevdate").value, effect:g("fw-effect").value, signed:g("fw-sign").value, signDate:new Date().toISOString().slice(0,10) };
+  const g=id=>document.getElementById(id), v=HR.val;
+  const changeTypes=[...document.querySelectorAll('input[name="fw-chg"]:checked')].map(c=>c.value);
+  const dur=HR.radio("fw-dur"), prev=HR.radio("fw-prev");
+  const checks=[
+    {label:"Full name",ok:!!v("fw-name"),el:g("fw-name")},
+    {label:"Job title",ok:!!v("fw-jobtitle"),el:g("fw-jobtitle")},
+    {label:"Department",ok:!!v("fw-dept"),el:g("fw-dept")},
+    {label:"Date of this request",ok:!!v("fw-reqdate"),el:g("fw-reqdate")},
+    {label:"Current working pattern",ok:!!v("fw-current"),el:g("fw-current")},
+    {label:"Type of change",ok:changeTypes.length>0,el:g("fw-chg-wrap")},
+    {label:"New working pattern",ok:!!v("fw-newpattern"),el:g("fw-newpattern")},
+    {label:"Date you would like the change to take effect",ok:!!v("fw-effective"),el:g("fw-effective")},
+    {label:"Permanent or temporary",ok:!!dur,el:g("fw-dur-wrap")}
+  ];
+  if(dur==="Temporary"){
+    checks.push({label:"End date of the temporary change",ok:!!v("fw-enddate"),el:g("fw-enddate")});
+    if(v("fw-enddate")&&v("fw-effective")) checks.push({label:"The end date must be after the date the change takes effect",ok:v("fw-enddate")>v("fw-effective"),el:g("fw-enddate")});
+  }
+  checks.push({label:"Statutory request confirmation",ok:g("fw-statutory").checked,el:g("fw-stat-wrap")});
+  checks.push({label:"Previous request in the last 12 months (Yes or No)",ok:!!prev,el:g("fw-prev-wrap")});
+  if(prev==="Yes") checks.push({label:"Date of the previous request",ok:!!v("fw-prevdate"),el:g("fw-prevdate")});
+  checks.push({label:"Declaration (type your full name)",ok:!!v("fw-sign"),el:g("fw-sign")});
+  if(!HR.validate("fw-err",checks)) return;
+  const data={ name:v("fw-name"), jobTitle:v("fw-jobtitle"), dept:v("fw-dept"), mgr:v("fw-mgr"), reqDate:v("fw-reqdate"), currentPattern:v("fw-current"), changeTypes, newPattern:v("fw-newpattern"), effectiveDate:v("fw-effective"), duration:dur, endDate:dur==="Temporary"?v("fw-enddate"):"", statutory:g("fw-statutory").checked, prevRequest:prev, prevDate:prev==="Yes"?v("fw-prevdate"):"", effect:v("fw-effect"), signed:v("fw-sign") };
   const [,error]=await HR.call("submissions.create",{type:"flex_work",data});
-  if(error){ alert("Submit failed: "+error.message); return; }
+  if(error){ HR.serverError("fw-err",error); return; }
   if(typeof toast==="function") toast("Flexible working request submitted"); HR.buildFlexWork();
 };
 
@@ -511,13 +855,13 @@ HR.DSE_GROUPS=[
 async function showDse(){ hrShow("page-dse","dse"); await HR.buildDse(); }
 HR.buildDse = async function(){
   const el=document.getElementById("page-dse"); if(!el) return; if(HR.needCloud(el)) return;
-  const me=HR.orgRow(DB.myEmail)||{}; const mgr=HR.orgRow((me.manager_email||""))||{};
+  const {me,mgr}=HR.myRows();
   HR._dseFlat=[]; let n=0; let groupsHtml="";
   HR.DSE_GROUPS.forEach((grp,gi)=>{
     const rows=grp.items.map(q=>{
       const i=n++; HR._dseFlat.push({group:grp.title,q});
-      return `<tr><td style="padding:6px 4px;font-size:12px;">${DB.esc(q)}</td>
-        <td style="padding:6px 8px;white-space:nowrap;"><label style="font-size:12px;margin-right:10px;"><input type="radio" name="dse-q${i}" value="Yes"> Yes</label><label style="font-size:12px;"><input type="radio" name="dse-q${i}" value="No"> No</label></td>
+      return `<tr><td style="padding:6px 4px;font-size:12px;">${DB.esc(q)} <span class="req"></span></td>
+        <td style="padding:6px 8px;white-space:nowrap;"><div class="opt-group" id="dse-w${i}" style="flex-wrap:nowrap;margin:0;">${HR.opts("dse-q"+i,["Yes","No"],"radio","")}</div></td>
         <td style="padding:6px 4px;"><input id="dse-n${i}" placeholder="Note (optional)" style="width:100%;border:1px solid var(--border);border-radius:5px;padding:5px 6px;font-size:11.5px;box-sizing:border-box;"></td></tr>`;
     }).join("");
     groupsHtml+=`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">${gi+2}</span> ${DB.esc(grp.title)}</div><div class="sfs-body"><table style="width:100%;border-collapse:collapse;"><tbody>${rows}</tbody></table></div></div>`;
@@ -526,46 +870,62 @@ HR.buildDse = async function(){
   el.innerHTML=`<div class="sdi-doc">`
    +HR.hero("Service Desk Institute® · Health &amp; Safety · Home Working","DSE Workstation Self-Assessment","A quick self-check of your home workstation. Answer each item Yes (fine) or No (needs attention). Routes to "+DB.esc(mgr.full_name||"your line manager")+".","Owner","Paul M Rodrigues")
    +HR.docBlock("dse")
+   +`<div class="hr-note">All fields marked <span class="req"></span> must be completed. The note next to each question is optional.</div>`
    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Your details</div><div class="sfs-body">
-     <div class="hr-grid2"><div class="hr-field"><label>Full name</label><input id="dse-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label>Department</label><input id="dse-dept" value="${DB.esc(me.department||"")}"></div></div>
-     <div class="hr-grid2"><div class="hr-field"><label>Line manager</label><input id="dse-mgr" value="${DB.esc(mgr.full_name||"")}" readonly></div><div class="hr-field"><label>Where you work (room / setup)</label><input id="dse-where" placeholder="e.g. home office, spare room desk"></div></div>
-     <div class="hr-field"><label>Date of assessment</label><input type="date" id="dse-date"></div></div></div>`
+     <div class="hr-grid2"><div class="hr-field"><label class="req">Full name</label><input id="dse-name" value="${DB.esc(me.full_name||(DB.user&&DB.user.name)||"")}"></div><div class="hr-field"><label class="req">Department</label><input id="dse-dept" value="${DB.esc(me.department||"")}"></div></div>
+     <div class="hr-grid2"><div class="hr-field"><label>Line manager</label><input id="dse-mgr" value="${DB.esc(mgr.full_name||"")}" readonly></div><div class="hr-field"><label class="req">Where you work (room / setup)</label><input id="dse-where" placeholder="e.g. home office, spare room desk"></div></div>
+     <div class="hr-field"><label class="req">Date of assessment</label><input type="date" id="dse-date" value="${HR.today()}"></div></div></div>`
    +groupsHtml
    +`<div class="sdi-form-sec"><div class="sfs-head"><span class="num">${nIssues}</span> Issues &amp; support</div><div class="sfs-body">
-     <div class="hr-field"><label>Anything you marked “No”, or any discomfort/concern you cannot resolve yourself</label><textarea id="dse-issues" rows="2" placeholder="Describe anything that needs attention…"></textarea></div>
-     <div class="hr-grid2"><div class="hr-field"><label>Need equipment or support to fix an issue?</label><select id="dse-support"><option>No</option><option>Yes</option></select></div><div class="hr-field"><label>Would you like an eyesight test?</label><select id="dse-eye"><option>No</option><option>Yes</option></select></div></div></div></div>
+     <div class="hr-field"><label class="req">Anything you marked “No”, or any discomfort/concern you cannot resolve yourself</label><textarea id="dse-issues" rows="2" placeholder="Describe anything that needs attention, or write “None”."></textarea></div>
+     <div class="hr-grid2"><div class="hr-field"><label class="req">Need equipment or support to fix an issue?</label><select id="dse-support"><option value="">Select…</option><option>No</option><option>Yes</option></select></div><div class="hr-field"><label class="req">Would you like an eyesight test?</label><select id="dse-eye"><option value="">Select…</option><option>No</option><option>Yes</option></select></div></div></div></div>
    <div class="sdi-form-sec"><div class="sfs-head"><span class="num">${nDecl}</span> Declaration</div><div class="sfs-body">
      <div class="sdi-decl">I confirm that I have carried out this assessment of my own home workstation, that the answers above are accurate, and that I will take reasonable care of my own health and safety and cooperate with any follow-up. I understand I should raise any concerns I cannot resolve myself promptly.</div>
-     <div class="hr-field"><label>Signed — type your full name</label><input id="dse-sign" placeholder="Your full name"></div>
+     <div class="hr-field"><label class="req">Signed — type your full name</label><input id="dse-sign" placeholder="Your full name"></div>
+     <div id="dse-err" class="hr-errbox"></div>
      <button class="hr-btn" onclick="HR.submitDse()">Submit${mgr.full_name?(" to "+DB.esc(mgr.full_name)):""}</button></div></div>
    </div><div id="dse-lists"></div>`;
   HR.renderSubs("dse","dse-lists");
 };
 HR.submitDse = async function(){
-  const g=id=>document.getElementById(id);
-  if(!g("dse-sign").value){ alert("Sign the declaration to submit."); return; }
-  const answers=(HR._dseFlat||[]).map((it,i)=>({group:it.group,q:it.q,ans:(document.querySelector('input[name="dse-q'+i+'"]:checked')||{}).value||"",note:(g("dse-n"+i)||{}).value||""}));
-  const data={ name:g("dse-name").value, dept:g("dse-dept").value, mgr:g("dse-mgr").value, where:g("dse-where").value, date:g("dse-date").value, answers, issues:g("dse-issues").value, needSupport:g("dse-support").value, eyeTest:g("dse-eye").value, signed:g("dse-sign").value, signDate:new Date().toISOString().slice(0,10) };
+  const g=id=>document.getElementById(id), v=HR.val;
+  const answers=(HR._dseFlat||[]).map((it,i)=>({group:it.group,q:it.q,ans:HR.radio("dse-q"+i),note:v("dse-n"+i)}));
+  const unanswered=answers.map((a,i)=>a.ans?null:i).filter(i=>i!==null);
+  const checks=[
+    {label:"Full name",ok:!!v("dse-name"),el:g("dse-name")},
+    {label:"Department",ok:!!v("dse-dept"),el:g("dse-dept")},
+    {label:"Where you work",ok:!!v("dse-where"),el:g("dse-where")},
+    {label:"Date of assessment",ok:!!v("dse-date"),el:g("dse-date")},
+    {label:"Answer Yes or No to every question ("+unanswered.length+" not answered)",ok:!unanswered.length,el:unanswered.map(i=>g("dse-w"+i))},
+    {label:"Issues & support (write “None” if nothing needs attention)",ok:!!v("dse-issues"),el:g("dse-issues")},
+    {label:"Need equipment or support",ok:!!v("dse-support"),el:g("dse-support")},
+    {label:"Eyesight test",ok:!!v("dse-eye"),el:g("dse-eye")},
+    {label:"Declaration (type your full name)",ok:!!v("dse-sign"),el:g("dse-sign")}
+  ];
+  if(!HR.validate("dse-err",checks)) return;
+  const data={ name:v("dse-name"), dept:v("dse-dept"), mgr:v("dse-mgr"), where:v("dse-where"), date:v("dse-date"), answers, issues:v("dse-issues"), needSupport:v("dse-support"), eyeTest:v("dse-eye"), signed:v("dse-sign") };
   const [,error]=await HR.call("submissions.create",{type:"dse",data});
-  if(error){ alert("Submit failed: "+error.message); return; }
+  if(error){ HR.serverError("dse-err",error); return; }
   if(typeof toast==="function") toast("DSE self-assessment submitted"); HR.buildDse();
 };
 
-/* ============ Manager detail view (shared by flex_work + dse) ============ */
+/* ============ Detail view (shared by flex_work + dse) ============ */
 HR.ro = function(label,val){ return `<div class="hr-field"><label>${DB.esc(label)}</label><div style="font-size:12.5px;white-space:pre-wrap;">${DB.esc((val==null||val==="")?"—":String(val))}</div></div>`; };
 HR.openSubmission = async function(id){
-  const [sg]=await HR.call("submissions.get",{id}); const s=(sg&&sg.item)||null;
-  if(!s) return;
+  const [sg,err]=await HR.call("submissions.get",{id}); const s=(sg&&sg.item)||null;
+  if(!s){ HR.error(err?err.message:"That form was not found."); return; }
   const type=s.type, pageId=type==="flex_work"?"page-flexwork":"page-dse";
   const el=document.getElementById(pageId); if(!el) return;
-  const d=s.data||{}, m=s.manager_data||{};
-  const canManage=HR.iAmLineMgrOf(s.employee_email)||DB.isAdmin;
+  const d=s.data||{};
+  const emp=(s.employee_email||"").toLowerCase();
+  const canManage=emp!==DB.myEmail && (HR.iAmLineMgrOf(emp)||(DB.isAdmin&&!HR.orgRow(emp)?.manager_email)) && s.status==="submitted";
   const back=`<button class="hr-btn ghost" onclick="${type==="flex_work"?"HR.buildFlexWork()":"HR.buildDse()"}">← Back</button>`;
-  const emp = type==="flex_work" ? HR.fwEmpView(d) : HR.dseEmpView(d);
+  const empView = type==="flex_work" ? HR.fwEmpView(d) : HR.dseEmpView(d);
   const mgrSec = type==="flex_work" ? HR.fwMgrSection(s,canManage) : HR.dseMgrSection(s,canManage);
   el.innerHTML=`<div class="sdi-doc"><div style="margin-bottom:12px;">${back}</div>`
-    +HR.hero("Service Desk Institute® · "+(type==="flex_work"?"Flexible Working":"DSE Self-Assessment"),(type==="flex_work"?"Flexible Working Request":"DSE Self-Assessment"),"Submitted by "+DB.esc(s.employee_email)+" · status: "+DB.esc(s.status),"Reference",String(s.id).slice(0,8))
-    +emp+mgrSec+`</div>`;
+    +HR.hero("Service Desk Institute® · "+(type==="flex_work"?"Flexible Working":"DSE Self-Assessment"),(type==="flex_work"?"Flexible Working Request":"DSE Self-Assessment"),"Submitted by "+DB.esc(HR.name(emp))+" on "+DB.esc(DB.fmtDate(s.submitted_at))+" · status: "+DB.esc(s.status),"Reference",String(s.id).slice(0,8))
+    +empView+mgrSec+HR.trailHtml(s.manager_data)+`</div>`;
+  try{ window.scrollTo(0,0); }catch(e){}
 };
 HR.fwEmpView = function(d){
   return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">1</span> Employee request</div><div class="sfs-body">`
@@ -575,11 +935,11 @@ HR.fwEmpView = function(d){
     +HR.ro("Current working pattern",d.currentPattern)
     +HR.ro("Type of change",(d.changeTypes||[]).join(", "))
     +HR.ro("Proposed new pattern",d.newPattern)
-    +HR.ro("Requested effective date",d.effectiveDate)
+    +`<div class="hr-grid2">${HR.ro("Requested effective date",d.effectiveDate)}${HR.ro("Permanent or temporary",d.duration?(d.duration+(d.endDate?(" — ends "+d.endDate):"")):"")}</div>`
     +HR.ro("Statutory request confirmed",d.statutory?"Yes":"No")
-    +HR.ro("Previous request in last 12 months",d.prevRequest+(d.prevDate?(" ("+d.prevDate+")"):""))
+    +HR.ro("Previous request in last 12 months",(d.prevRequest||"")+(d.prevDate?(" ("+d.prevDate+")"):""))
     +HR.ro("Effect on the business",d.effect)
-    +HR.ro("Signed",d.signed+(d.signDate?(" · "+d.signDate):""))
+    +HR.ro("Signed",(d.signed||"")+(d.signDate?(" · "+d.signDate):""))
     +`</div></div>`;
 };
 HR.dseEmpView = function(d){
@@ -591,27 +951,33 @@ HR.dseEmpView = function(d){
     +`<table style="width:100%;border-collapse:collapse;margin-top:8px;"><thead><tr><th style="text-align:left;font-size:9.5px;text-transform:uppercase;color:var(--muted);padding:4px;">Item</th><th style="text-align:left;font-size:9.5px;text-transform:uppercase;color:var(--muted);padding:4px;">Answer</th><th style="text-align:left;font-size:9.5px;text-transform:uppercase;color:var(--muted);padding:4px;">Note</th></tr></thead><tbody>${rows}</tbody></table>`
     +`<div style="margin-top:10px;">${HR.ro("Issues / discomfort noted",d.issues)}</div>`
     +`<div class="hr-grid2">${HR.ro("Needs equipment/support",d.needSupport)}${HR.ro("Eyesight test requested",d.eyeTest)}</div>`
-    +HR.ro("Signed",d.signed+(d.signDate?(" · "+d.signDate):""))
+    +HR.ro("Signed",(d.signed||"")+(d.signDate?(" · "+d.signDate):""))
     +`</div></div>`;
 };
 HR.fwMgrSection = function(s,canManage){
   const m=s.manager_data||{};
+  const ocLbl={approved:"Approved",trial:"Approved on trial",declined:"Declined"};
   if(!canManage){
     if(!m.outcome) return `<div class="hr-note" style="margin-top:12px;">Awaiting the line manager's decision.</div>`;
     return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">7</span> Decision (line manager)</div><div class="sfs-body">`
-      +HR.ro("Outcome",m.outcome)+HR.ro("Meeting held on",m.meetingDate)
+      +HR.ro("Outcome",ocLbl[m.outcome]||m.outcome)+HR.ro("Meeting held on",m.meetingDate)
       +(m.declineReasons&&m.declineReasons.length?HR.ro("Decline reasons",m.declineReasons.join(", ")):"")
-      +HR.ro("Trial / review",m.trialReview)+HR.ro("Agreed effective date",m.agreedDate)+HR.ro("Notes",m.notes)+HR.ro("Signed",m.mgrSign+(m.mgrDate?(" · "+m.mgrDate):""))+`</div></div>`;
+      +HR.ro("Trial / review",m.trialReview)+HR.ro("Agreed effective date",m.agreedDate)+HR.ro("Notes",m.notes)
+      +HR.ro("Signed",(m.mgrSign||"")+(m.mgrDate?(" · "+m.mgrDate):""))
+      +HR.ro("Recorded by",HR.name(s.decided_by)+(s.decided_at?(" · "+HR.dt(s.decided_at)):""))+`</div></div>`;
   }
-  const reasons=HR.FW_REASONS.map(r=>`<label style="display:block;margin:3px 0;font-size:12px;"><input type="checkbox" class="fwm-reason" value="${DB.esc(r)}" ${(m.declineReasons||[]).includes(r)?"checked":""}> ${DB.esc(r)}</label>`).join("");
-  const oc=m.outcome||"";
   return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">7</span> Decision — for the line manager</div><div class="sfs-body">
-    <div class="hr-field"><label>Meeting held on</label><input type="date" id="fwm-meeting" value="${DB.esc(m.meetingDate||"")}"></div>
-    <div class="hr-field"><label>Outcome</label><label style="font-size:12.5px;margin-right:12px;"><input type="radio" name="fwm-outcome" value="approved" ${oc==="approved"?"checked":""}> Approved</label><label style="font-size:12.5px;margin-right:12px;"><input type="radio" name="fwm-outcome" value="trial" ${oc==="trial"?"checked":""}> Approved on trial</label><label style="font-size:12.5px;"><input type="radio" name="fwm-outcome" value="declined" ${oc==="declined"?"checked":""}> Declined</label></div>
-    <div class="hr-field"><label>If declined, the business reason(s) — statutory grounds</label>${reasons}</div>
-    <div class="hr-grid2"><div class="hr-field"><label>Trial period / review date (if on trial)</label><input id="fwm-trial" value="${DB.esc(m.trialReview||"")}" placeholder="e.g. 3-month trial, review 01/11/2026"></div><div class="hr-field"><label>Agreed effective date</label><input type="date" id="fwm-agreed" value="${DB.esc(m.agreedDate||"")}"></div></div>
-    <div class="hr-field"><label>Notes / summary of discussion</label><textarea id="fwm-notes" rows="2">${DB.esc(m.notes||"")}</textarea></div>
-    <div class="hr-grid2"><div class="hr-field"><label>Line manager name &amp; signature</label><input id="fwm-sign" value="${DB.esc(m.mgrSign||"")}"></div><div class="hr-field"><label>Date</label><input type="date" id="fwm-date" value="${DB.esc(m.mgrDate||"")}"></div></div>
+    <div class="hr-note">Fields marked <span class="req"></span> must be completed. Once saved, the decision is final and kept in the history.</div>
+    <div class="hr-field"><label class="req">Meeting held on</label><input type="date" id="fwm-meeting"></div>
+    <div class="hr-field"><label class="req">Outcome</label><div class="opt-group" id="fwm-outcome-wrap">
+      <label class="opt"><input type="radio" name="fwm-outcome" value="approved"> <span>Approved</span></label>
+      <label class="opt"><input type="radio" name="fwm-outcome" value="trial"> <span>Approved on trial</span></label>
+      <label class="opt"><input type="radio" name="fwm-outcome" value="declined"> <span>Declined</span></label></div></div>
+    <div class="hr-field"><label>If declined, the business reason(s) — statutory grounds (at least one if declined)</label><div class="opt-group stack" id="fwm-reasons-wrap">${HR.opts("fwm-reason",HR.FW_REASONS,"checkbox",[])}</div></div>
+    <div class="hr-grid2"><div class="hr-field"><label>Trial period / review date (required if on trial)</label><input id="fwm-trial" placeholder="e.g. 3-month trial, review 01/11/2026"></div><div class="hr-field"><label>Agreed effective date</label><input type="date" id="fwm-agreed"></div></div>
+    <div class="hr-field"><label>Notes / summary of discussion</label><textarea id="fwm-notes" rows="2"></textarea></div>
+    <div class="hr-grid2"><div class="hr-field"><label class="req">Line manager signature — type your full name</label><input id="fwm-sign"></div><div class="hr-field"><label class="req">Date</label><input type="date" id="fwm-date" value="${HR.today()}"></div></div>
+    <div id="fwm-err" class="hr-errbox"></div>
     <button class="hr-btn" onclick="HR.saveManagerSection('${s.id}','flex_work')">Save decision</button></div></div>`;
 };
 HR.dseMgrSection = function(s,canManage){
@@ -622,24 +988,35 @@ HR.dseMgrSection = function(s,canManage){
       +HR.ro("Actions agreed",m.actions)+HR.ro("Review date",m.reviewDate)+HR.ro("Reviewed by",m.reviewer)+`</div></div>`;
   }
   return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">12</span> Action &amp; review — for the line manager</div><div class="sfs-body">
-    <div class="hr-field"><label>Actions agreed to address any issues</label><textarea id="dsem-actions" rows="2" placeholder="Equipment provided, guidance given, adjustments…">${DB.esc(m.actions||"")}</textarea></div>
-    <div class="hr-grid2"><div class="hr-field"><label>Review date</label><input type="date" id="dsem-review" value="${DB.esc(m.reviewDate||"")}"></div><div class="hr-field"><label>Reviewed by (name &amp; signature)</label><input id="dsem-reviewer" value="${DB.esc(m.reviewer||"")}"></div></div>
+    <div class="hr-field"><label class="req">Actions agreed to address any issues</label><textarea id="dsem-actions" rows="2" placeholder="Equipment provided, guidance given, adjustments… or “None needed”">${DB.esc(m.actions||"")}</textarea></div>
+    <div class="hr-grid2"><div class="hr-field"><label>Review date</label><input type="date" id="dsem-review" value="${DB.esc(m.reviewDate||"")}"></div><div class="hr-field"><label class="req">Reviewed by (name &amp; signature)</label><input id="dsem-reviewer" value="${DB.esc(m.reviewer||"")}"></div></div>
+    <div id="dsem-err" class="hr-errbox"></div>
     <button class="hr-btn" onclick="HR.saveManagerSection('${s.id}','dse')">Save review</button></div></div>`;
 };
 HR.saveManagerSection = async function(id,type){
-  const g=x=>document.getElementById(x);
-  let manager_data, status;
+  const g=x=>document.getElementById(x), v=HR.val;
+  let manager_data, box;
   if(type==="flex_work"){
-    const outcome=(document.querySelector('input[name="fwm-outcome"]:checked')||{}).value;
-    if(!outcome){ alert("Select an outcome (Approved / Trial / Declined)."); return; }
-    manager_data={ by:DB.myEmail, meetingDate:g("fwm-meeting").value, outcome, declineReasons:[...document.querySelectorAll(".fwm-reason:checked")].map(c=>c.value), trialReview:g("fwm-trial").value, agreedDate:g("fwm-agreed").value, notes:g("fwm-notes").value, mgrSign:g("fwm-sign").value, mgrDate:g("fwm-date").value };
-    status=outcome;
+    box="fwm-err";
+    const outcome=HR.radio("fwm-outcome");
+    const reasons=[...document.querySelectorAll('input[name="fwm-reason"]:checked')].map(c=>c.value);
+    const checks=[
+      {label:"Meeting held on",ok:!!v("fwm-meeting"),el:g("fwm-meeting")},
+      {label:"Outcome",ok:!!outcome,el:g("fwm-outcome-wrap")}
+    ];
+    if(outcome==="declined") checks.push({label:"Business reason(s) for declining",ok:reasons.length>0,el:g("fwm-reasons-wrap")});
+    if(outcome==="trial") checks.push({label:"Trial period / review date",ok:!!v("fwm-trial"),el:g("fwm-trial")});
+    checks.push({label:"Line manager signature",ok:!!v("fwm-sign"),el:g("fwm-sign")});
+    checks.push({label:"Date signed",ok:!!v("fwm-date"),el:g("fwm-date")});
+    if(!HR.validate(box,checks)) return;
+    manager_data={ meetingDate:v("fwm-meeting"), outcome, declineReasons:outcome==="declined"?reasons:[], trialReview:v("fwm-trial"), agreedDate:v("fwm-agreed"), notes:v("fwm-notes"), mgrSign:v("fwm-sign"), mgrDate:v("fwm-date") };
   } else {
-    manager_data={ by:DB.myEmail, actions:g("dsem-actions").value, reviewDate:g("dsem-review").value, reviewer:g("dsem-reviewer").value };
-    status="reviewed";
+    box="dsem-err";
+    if(!HR.validate(box,[{label:"Actions agreed",ok:!!v("dsem-actions"),el:g("dsem-actions")},{label:"Reviewed by (name & signature)",ok:!!v("dsem-reviewer"),el:g("dsem-reviewer")}])) return;
+    manager_data={ actions:v("dsem-actions"), reviewDate:v("dsem-review"), reviewer:v("dsem-reviewer") };
   }
   const [,error]=await HR.call("submissions.saveManagerSection",{id,manager_data});
-  if(error){ alert("Save failed: "+error.message); return; }
+  if(error){ HR.serverError(box,error); return; }
   if(typeof toast==="function") toast("Saved");
-  if(type==="flex_work") HR.buildFlexWork(); else HR.buildDse();
+  HR.openSubmission(id);
 };

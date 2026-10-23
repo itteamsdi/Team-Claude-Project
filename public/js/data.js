@@ -186,7 +186,7 @@ window.DB = {
   async _signRpc(fn,okMsg){
     let row=null;
     try{ row=(await this.api(fn,{ id:String(this.currentId) })).item; }
-    catch(e){ alert("Couldn't update sign-off: "+e.message); await this.refreshCurrent(); return; }
+    catch(e){ (window.HR&&HR.error?HR.error:alert)("Couldn't update sign-off: "+e.message); await this.refreshCurrent(); return; }
     if(row){ this.updateRow(row); if(row.updated_at) this._lastAppliedAt=row.updated_at; }
     this.applyLock(row);
     const sg=this.signState(row);
@@ -206,7 +206,7 @@ window.DB = {
       if(!S.signoff) S.signoff={};
       if(!S.signoff.dateAgreed){ S.signoff.dateAgreed=new Date().toISOString().slice(0,10); restoreSignoff(); }
       clearTimeout(this.saveTimer); this.saveTimer=null;
-      if(!(await this.flushSave())){ alert("Your latest changes couldn't be saved, so the review hasn't been signed. Check your connection and try again."); return; }
+      if(!(await this.flushSave())){ (window.HR&&HR.error?HR.error:alert)("Your latest changes couldn't be saved, so the review hasn't been signed. Check your connection and try again."); return; }
     }
     await this._signRpc("reviews.sign","✍ Signed — waiting for the "+other);
   },
@@ -350,9 +350,11 @@ window.DB = {
       const mr=byEmail[(m.manager_email||"").toLowerCase()];
       const reportsTo=mr?("reports to "+(mr.full_name||mr.email)):"top of org";
       return '<div class="team-member"><div><div class="tm-name">'+DB.esc(m.full_name||m.email)+'</div>'
-        +'<div class="tm-meta">'+DB.esc(m.email)+' · '+DB.esc(reportsTo)+'</div></div>'
-        +'<div class="tm-actions"><span class="tm-role '+(m.role==="admin"?"admin":"member")+'">'+(m.role==="admin"?"Admin":"Member")+'</span>'
-        +'<button class="tm-reset" title="Load into the form above to change name, manager or role" onclick="DB.editMember(\''+DB.esc(m.email)+'\')">Edit</button>'
+        +'<div class="tm-meta">'+DB.esc(m.email)+' · '+DB.esc(reportsTo)+'</div>'
+        +((m.job_title||m.department)?'<div class="tm-meta">'+DB.esc([m.job_title,m.department].filter(Boolean).join(" · "))+'</div>':'')+'</div>'
+        +'<div class="tm-actions">'+(m.is_ceo?'<span class="tm-role admin">CEO</span>':'')+(m.is_finance?'<span class="tm-role admin">Finance</span>':'')
+        +'<span class="tm-role '+(m.role==="admin"?"admin":"member")+'">'+(m.role==="admin"?"Admin":"Member")+'</span>'
+        +'<button class="tm-reset" title="Load into the form above to change name, job title, department, manager or role" onclick="DB.editMember(\''+DB.esc(m.email)+'\')">Edit</button>'
         +((m.email||"").toLowerCase()!==this.myEmail
           ?'<button class="tm-reset" title="Give this person a new one-time password" onclick="DB.resetPassword(\''+DB.esc(m.email)+'\')">'+(m.has_account===false?"Create sign-in":"Reset password")+'</button>'
            +'<button class="auth-del" title="Remove from org" onclick="DB.removeMember(\''+DB.esc(m.email)+'\')">&times;</button>':'')
@@ -379,6 +381,10 @@ window.DB = {
     document.getElementById("team-email").value=m.email||"";
     document.getElementById("team-role").value=m.role==="admin"?"admin":"member";
     document.getElementById("team-mgr").value=m.manager_email||"";
+    document.getElementById("team-jobtitle").value=m.job_title||"";
+    document.getElementById("team-dept").value=m.department||"";
+    document.getElementById("team-finance").checked=!!m.is_finance;
+    document.getElementById("team-ceo").checked=!!m.is_ceo;
     this.teamOk("Editing "+(m.full_name||m.email)+". Change the details above, then save.");
   },
   async invite(){
@@ -389,11 +395,14 @@ window.DB = {
     if(!email){ this.teamErr("Enter the person's work email."); return; }
     this.teamErr(""); this.teamOk(""); this.showTemp(null);
     let out;
-    try{ out=await this.api("org.save",{ email, full_name, manager_email, role }); }
+    const job_title=this.val("team-jobtitle"), department=this.val("team-dept");
+    const is_finance=document.getElementById("team-finance").checked, is_ceo=document.getElementById("team-ceo").checked;
+    try{ out=await this.api("org.save",{ email, full_name, manager_email, role, job_title, department, is_finance, is_ceo }); }
     catch(e){ this.teamErr(e.message); return; }
     this.org=out.members||this.org;
     this.renderTeam(); this.refreshNewReviewOptions();
-    document.getElementById("team-name").value=""; document.getElementById("team-email").value="";
+    ["team-name","team-email","team-jobtitle","team-dept"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+    ["team-finance","team-ceo"].forEach(id=>{ const e=document.getElementById(id); if(e) e.checked=false; });
     if(out.temporary_password){ this.teamOk("Added "+email+"."); this.showTemp(email,out.temporary_password); }
     else this.teamOk("Saved the details for "+email+".");
   },
