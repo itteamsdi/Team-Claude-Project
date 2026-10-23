@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/src/bootstrap.php';
 
+use SdiHr\Api\CostCentresApi;
 use SdiHr\Api\DocsApi;
 use SdiHr\Api\JobDescriptionsApi;
 use SdiHr\Api\OrgApi;
@@ -77,6 +78,11 @@ $routes = [
     'submissions.create' => [SubmissionsApi::class, 'create'],
     'submissions.decide' => [SubmissionsApi::class, 'decide'],
     'submissions.saveManagerSection' => [SubmissionsApi::class, 'saveManagerSection'],
+    'submissions.expenseAction' => [SubmissionsApi::class, 'expenseAction'],
+
+    'costCentres.list' => [CostCentresApi::class, 'list'],
+    'costCentres.save' => [CostCentresApi::class, 'save'],
+    'costCentres.remove' => [CostCentresApi::class, 'remove'],
 ];
 
 $route = $routes[$body['action']] ?? null;

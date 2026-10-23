@@ -425,7 +425,7 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 .auth-del:hover{color:#fff;background:#dc2626;}
 .auth-new{margin-top:14px;border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface);}
 .auth-new input{width:100%;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12.5px;margin-bottom:8px;box-sizing:border-box;font-family:Arial,sans-serif;}
-.auth-err{background:var(--red-light);border:1px solid var(--red-mid);color:#7f1d1d;font-size:11.5px;padding:9px 12px;border-radius:6px;margin-bottom:14px;line-height:1.5;display:none;}
+.auth-err{background:#b91c1c;border:1px solid #991b1b;color:#fff;font-weight:600;font-size:12px;padding:9px 12px;border-radius:6px;margin-bottom:14px;line-height:1.5;display:none;}
 .auth-err.show{display:block;}
 .auth-ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:11.5px;padding:9px 12px;border-radius:6px;margin-bottom:14px;line-height:1.5;display:none;}
 .auth-ok.show{display:block;}
@@ -487,6 +487,8 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 .hist-wrap{overflow-x:auto;}
 @media (max-width:640px){.so-sigs,.hist-stats{grid-template-columns:1fr;}}
 .ro-mode .main .sec-card button,.ro-mode .main .hcard,.ro-mode .main .cfo-rag-btn{pointer-events:none;opacity:.7;}
+/* Page navigation (Next / Previous, overview cards) must keep working when a review is view-only or awaiting sign-off. */
+.ro-mode .main .sec-card .nav-btns button,.ro-mode .main .hcard{pointer-events:auto;opacity:1;}
 .ro-mode #sb-emp-name,.ro-mode #sb-emp-role,.ro-mode #sb-date,.ro-mode #sb-mgr-name,.ro-mode .sb-reset{pointer-events:none;opacity:.6;}
 /* TOP-LEVEL TAB BAR (Review is one tab among peers) */
 #topbar{position:sticky;top:0;z-index:500;background:#fff;border-bottom:1px solid var(--border);display:flex;gap:2px;padding:0 18px;box-shadow:0 1px 4px rgba(0,0,0,.05);flex-wrap:wrap;align-items:center;}
@@ -612,3 +614,47 @@ body{font-family:Arial,sans-serif;font-size:10pt;background:#f0f2f7;color:var(--
 .tm-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
 .tm-reset{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;font-size:10.5px;padding:3px 8px;cursor:pointer;}
 .tm-reset:hover{color:var(--ink);border-color:var(--navy-mid);}
+
+/* ===== Initial testing changes (Oct 2026) ===== */
+/* Tick boxes and radio buttons: each option in its own outlined box, lined up with its text. */
+.hr-field input[type=checkbox],.hr-field input[type=radio],.opt input{width:auto;padding:0;margin:0;flex:0 0 auto;accent-color:var(--navy);height:16px;width:16px;}
+.opt-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+.opt-group.stack{flex-direction:column;align-items:stretch;}
+.hr-field label.opt,label.opt{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin:0;background:#fff;cursor:pointer;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink);line-height:1.35;}
+label.opt:hover{border-color:#94a3b8;}
+label.opt:has(input:checked){border-color:var(--navy);background:#eef2f8;}
+.req::after{content:" *";color:#b91c1c;font-weight:700;}
+.hr-field-hint{font-size:11px;color:var(--muted);margin-top:3px;}
+/* Error messages: strong red so they cannot be missed. */
+.hr-errbox{display:none;background:#b91c1c;color:#fff;border-radius:8px;padding:12px 16px;margin:0 0 14px;font-size:13px;font-weight:600;line-height:1.5;box-shadow:0 2px 10px rgba(185,28,28,.35);}
+.hr-errbox.show{display:block;}
+.hr-errbox ul{margin:6px 0 0 18px;padding:0;font-weight:400;}
+.invalid,.hr-field .invalid,.exp-tbl .invalid{border:2px solid #b91c1c !important;background:#fff1f2 !important;}
+.opt-group.invalid{border-radius:8px;padding:6px;}
+#hr-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px;}
+#hr-modal.show{display:flex;}
+#hr-modal .hm-card{background:#fff;border-radius:10px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);overflow:hidden;font-family:Arial,sans-serif;}
+#hr-modal .hm-head{padding:12px 18px;font-weight:700;font-size:14px;color:#fff;background:var(--navy);}
+#hr-modal.error .hm-head{background:#b91c1c;}
+#hr-modal .hm-body{padding:16px 18px;font-size:13px;color:var(--ink);line-height:1.55;white-space:pre-wrap;}
+#hr-modal .hm-body textarea,#hr-modal .hm-body input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12.5px;font-family:Arial,sans-serif;margin-top:6px;}
+#hr-modal .hm-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--surface);}
+/* Expense claim table and detail */
+.exp-tbl select,.exp-tbl input{width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:5px;padding:6px;font-size:12px;font-family:Arial,sans-serif;background:#fff;}
+.exp-tbl input[type=file]{border:none;padding:2px 0;font-size:11px;}
+.exp-tbl td{vertical-align:top;}
+.exp-total{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:12px;font-size:14px;}
+.exp-total b{font-size:18px;color:var(--navy);}
+.hr-status.exp-submitted{background:#fef3c7;color:#92400e;}
+.hr-status.exp-approved,.hr-status.exp-authorised,.hr-status.exp-payment_authorised{background:#e0f2fe;color:#075985;}
+.hr-status.exp-paid{background:#dcfce7;color:#166534;}.hr-status.exp-rejected{background:#fee2e2;color:#991b1b;}
+.trail{list-style:none;margin:0;padding:0;}
+.trail li{border-left:3px solid var(--border);padding:4px 0 8px 12px;font-size:12px;}
+.trail li b{color:var(--ink);}
+.hr-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 10px;}
+.hr-filter select{border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:12px;}
+.cc-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+.cc-row input{flex:1;border:1px solid var(--border);border-radius:6px;padding:7px 9px;font-size:12.5px;}
+.team-row input[type=checkbox]{width:auto;}
+.team-flags{display:flex;gap:16px;flex-wrap:wrap;margin:2px 0 10px;font-size:12.5px;}
+.team-flags label{display:flex;align-items:center;gap:6px;cursor:pointer;}

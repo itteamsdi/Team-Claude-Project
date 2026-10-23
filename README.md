@@ -4,10 +4,11 @@ An internal HR web app for SDI staff, in plain PHP 8.3 with a MariaDB 10.6 datab
 
 - **Staff Handbook**: company policies with a contents sidebar. Admins edit it.
 - **Job Description**: one per person. The line manager proposes changes; an admin approves them before they go live.
-- **Routed forms**: Self-Certification, Expense Claim (mileage at 35p per mile), Flexible Working Request and Home Working DSE Self-Assessment. The employee submits; their line manager authorises, decides or reviews.
+- **Routed forms**: Self-Certification, Expense Claim (mileage at 35p per mile, with receipts attached), Flexible Working Request and Home Working DSE Self-Assessment. The employee submits; their line manager authorises, decides or reviews. Expense claims then go to the finance team, who authorise payment and mark them paid. Each form has a history list, so past requests and decisions can be looked up later.
+- **Cost centres**: the finance team keeps the list offered on expense claims (Expense Claim → Manage cost centres).
 - **1-2-1 Review**: the employee and line manager fill in a structured review together. Both sign it off, which locks it.
 - **1-2-1 History** and **Follow-Up to 1-2-1**: signed-off reviews, and the actions agreed in the open review.
-- **Manage Team** (admins): add people, set who they report to, give admin rights and issue one-time passwords.
+- **Manage Team** (admins): add people with their job title and department, set who they report to, mark the finance team and the CEO, give admin rights and issue one-time passwords.
 
 This replaces the earlier Supabase + Netlify demo, which has been retired. The screens are the same; the review sidebar's "Export & share" button has been dropped. Sign-in, storage and all permission checks now happen on SDI's own server.
 
@@ -15,10 +16,10 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 
 | Folder | What it holds |
 |---|---|
-| `public/` | The web root. Entry points `index.php` (the app), `login.php`, `password.php`, `logout.php` and `api.php` (the JSON endpoint the app's JavaScript calls), plus `css/`, `js/` and `robots.txt`. |
+| `public/` | The web root. Entry points `index.php` (the app), `login.php`, `password.php`, `logout.php`, `api.php` (the JSON endpoint the app's JavaScript calls), `upload.php` (attach a receipt) and `file.php` (open an attached file, with permission checks), plus `css/`, `js/`, `robots.txt` and `.user.ini` (raises PHP's upload limit to 10 MB for this site only). |
 | `src/` | PHP classes and templates. Not reachable from the web. `Access.php` holds the access rules; `Api/` holds one file per feature. |
 | `src/content/` | Default Staff Handbook and job description master template, shown until an admin saves their own version. Served only to signed-in staff. |
-| `database/migrations/` | One `.sql` file per table, run once in name order on deployment. |
+| `database/migrations/` | One `.sql` file per change, run once in name order on deployment. |
 
 ## Environment variables
 
@@ -31,7 +32,7 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 | `DB_NAME` | Yes | The app's database. |
 | `DB_USER` | Yes | Database user for the app. It needs SELECT, INSERT, UPDATE and DELETE on that database. |
 | `DB_PASS` | Yes | That user's password. |
-| `STORAGE_DIR` | Recommended | Writable folder outside the repository and outside `public/`. The app keeps its sign-in sessions in `STORAGE_DIR/sessions` and creates that folder itself. If this is not set, PHP's shared session folder is used. |
+| `STORAGE_DIR` | Yes | Writable folder outside the repository and outside `public/`. The app keeps its sign-in sessions in `STORAGE_DIR/sessions` and attached receipts in `STORAGE_DIR/uploads`, and creates both folders itself. Without it, receipts cannot be attached and PHP's shared session folder is used. Include this folder in the server backups: it holds the only copy of each receipt. |
 | `BOOTSTRAP_ADMIN_EMAIL` | First run only | Email of the first admin. |
 | `BOOTSTRAP_ADMIN_PASSWORD` | First run only | A temporary password for the first admin. It works only while the app has no accounts at all, and the admin must change it straight away. Remove both BOOTSTRAP settings once the first admin has signed in. |
 
@@ -42,10 +43,11 @@ This replaces the earlier Supabase + Netlify demo, which has been retired. The s
 3. Point the site's document root at the repository's `public/` folder. Nothing else in the repository should be reachable.
 4. Serve the site over HTTPS only. Session cookies are marked Secure, so sign-in does not work over plain HTTP.
 5. The deployment system runs the files in `database/migrations/`. The user that runs them needs CREATE, ALTER, INDEX and REFERENCES on the app's database. The SQL uses CHECK constraints, JSON_VALID and foreign keys, all supported by MariaDB 10.6.
-6. PHP extensions used: pdo_mysql (Ubuntu package `php8.3-mysql`), mbstring, json, openssl and session. Nothing else is needed.
-7. Set `STORAGE_DIR` so the app keeps its own sessions. With a shared session folder, Ubuntu's clean-up can sign people out after 24 minutes of inactivity.
-8. If the site sits behind Cloudflare, a reverse proxy or a load balancer, PHP's `REMOTE_ADDR` must be the visitor's real IP address, because the sign-in lockout counts failures per address. See "Cloudflare" below.
-9. The app does not send email or need scheduled tasks.
+6. PHP extensions used: pdo_mysql (Ubuntu package `php8.3-mysql`), mbstring, json, openssl, session and fileinfo (checks the type of uploaded receipts). Nothing else is needed.
+7. Receipts can be up to 10 MB. `public/.user.ini` raises `upload_max_filesize` to 10M and `post_max_size` to 12M for this site only. php-fpm reads it automatically (within 5 minutes, or at once after `sudo systemctl reload php8.3-fpm`). If the server sets `user_ini.filename` to empty, set those two values in the site's php-fpm pool instead.
+8. Set `STORAGE_DIR` so the app keeps its own sessions. With a shared session folder, Ubuntu's clean-up can sign people out after 24 minutes of inactivity.
+9. If the site sits behind Cloudflare, a reverse proxy or a load balancer, PHP's `REMOTE_ADDR` must be the visitor's real IP address, because the sign-in lockout counts failures per address. See "Cloudflare" below.
+10. The app does not send email or need scheduled tasks.
 
 ## Step 1: Create the database
 
@@ -76,7 +78,7 @@ Check the login works. This asks for the password rather than putting it on the 
 mariadb -h localhost -u sdihr_staging_user -p sdihr_staging -e "SELECT 'connected' AS result;"
 ```
 
-Once the migrations have run, `SHOW TABLES;` in place of the SELECT should list seven tables: `job_descriptions`, `login_attempts`, `org_members`, `reviews`, `shared_docs`, `submissions` and `users`.
+Once the migrations have run, `SHOW TABLES;` in place of the SELECT should list nine tables: `cost_centres`, `job_descriptions`, `login_attempts`, `org_members`, `reviews`, `shared_docs`, `submission_files`, `submissions` and `users`.
 
 ## Step 2: Apache settings (one shared php-fpm for all sites)
 
@@ -223,13 +225,19 @@ These rules are checked on the server for every request (`src/Access.php` and `s
 | Direct line manager | View, edit, create, sign as manager | View, authorise and decide | Propose changes | Read | – |
 | One level above (skip-level) | View only | View only | View live version only | Read | – |
 | Admin | View all, create, reopen signed-off reviews, delete | View all, authorise and decide | Edit, approve, master template | Edit | Manage |
+| Finance team (ticked in Manage Team) | As their own position in the org chart | View all expense claims and flexible working requests; authorise payment of approved claims and mark them paid; manage cost centres | – | Read | – |
+| CEO (ticked in Manage Team) | As their own position in the org chart | View all expense claims and flexible working requests | – | Read | – |
+
+**Expense claims and flexible working requests** are also visible to **everyone above the employee in the reporting line** (line manager, their manager, and so on up), so each manager can look back at what the managers below them approved or rejected, and when. Self-certifications and DSE assessments keep the narrower rule: line manager and one level above.
+
+**Expense claim steps:** the employee submits (with a Yes/No receipt answer and a file for each line marked Yes) → the line manager reviews the full claim and approves or rejects → anyone in the finance team authorises payment or rejects → finance marks it paid with the payment date. A reason is required to reject. Every step is recorded with who did it and when (the claim's audit trail).
 
 More rules:
 
 - A review can be edited only while nobody has signed it. Once both the employee and line manager have signed, it is **Complete** and locked. Only an admin can reopen it, which clears both signatures.
 - A review can be deleted by the person who created it, or by an admin, unless it is Complete.
 - The line manager who signs a review is the employee's **current** line manager in the org chart. If someone changes manager, their open reviews move to the new manager.
-- Nobody can authorise or decide their own form, admins included. A self-certification or expense decision is final once made.
+- Nobody can authorise, decide or pay their own form, admins and finance included. Every decision (self-certification, each expense step, flexible working and DSE) is final once saved and stays in the history.
 - A line manager's proposed job description change is visible only to that manager and to admins until it is approved.
 - People can only sign in while they are in the org chart. Removing someone signs them out at once and keeps their past records.
 - Five wrong passwords in 15 minutes for the same email from one IP address, or 30 from one IP address across any emails, block sign-in from there for 15 minutes.
@@ -241,7 +249,9 @@ More rules:
 - Passwords are stored with `password_hash()`. The session ID is regenerated at sign-in. Cookies are Secure, HttpOnly and SameSite=Lax.
 - Handbook and job description text is cleaned on the server (`src/HtmlSanitizer.php`). Only basic formatting tags survive, plus safe `https:`/`mailto:` links. Scripts, styles, event handlers and images are removed. This closes the "add DOMPurify" follow-up from the demo.
 - Errors are written to the PHP error log. People only ever see a short generic message.
-- Expense totals are recalculated on the server.
+- Expense totals are recalculated on the server, mileage at 35p per mile. Cost centres are checked against the current list.
+- Receipts: PDF, JPG or PNG only (checked by file content, not name; no SVG), up to 10 MB, at most 50 per form. They are stored under `STORAGE_DIR/uploads` with new random names and are only served through `file.php`, which checks the person may see the form.
+- Every form's required fields are checked on the server as well as in the browser.
 - Search engines are kept out. `public/robots.txt` asks every crawler to stay away. Every page also sends an `X-Robots-Tag: noindex, nofollow, noarchive` header, so a page is never listed even if a crawler finds a link to it. This applies to staging and production alike.
 
 ## Checking it on staging
@@ -249,5 +259,6 @@ More rules:
 1. Sign in as the first admin (see "First sign-in") and add two people: a manager who reports to you, and an employee who reports to the manager.
 2. Sign in as the manager in a private window, create a 1-2-1 review for the employee and type in a few answers.
 3. Sign in as the employee in another browser. Check you can see the review, then sign it off. Then sign off as the manager. The review moves to **1-2-1 History** and can no longer be edited.
-4. As the employee, submit an expense claim. As the manager, authorise it.
-5. As the manager, propose a change to the employee's job description. As the admin, approve it.
+4. In Manage Team, tick **Finance team** for one person and **CEO** for another, and fill in job titles and departments.
+5. As the employee, submit an expense claim with a train fare (receipt attached) and a mileage line. As the manager, open it with **Review**, check the receipt opens, and approve it. As the finance person, authorise payment and mark it paid. As the CEO, check it appears in **Expense history** as Paid.
+6. As the manager, propose a change to the employee's job description. As the admin, approve it.

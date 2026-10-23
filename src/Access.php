@@ -10,10 +10,17 @@ namespace SdiHr;
  *  - View:  the employee, their direct line manager, ONE level above that, or an admin.
  *  - Edit:  the employee or their direct line manager.
  *  - Admin: everything that is admin-only (team, handbook, JD approval).
+ *
+ * Routed forms have their own view rule (see canViewSubmission): expense claims and
+ * flexible working requests are also visible to everyone above the employee in the
+ * reporting line, the finance team and the CEO, so there is a full audit trail.
  */
 final class Access
 {
-    /** @var array<string,array{email:string,full_name:?string,manager_email:?string,role:string}>|null */
+    /** Form types whose history is open to the whole reporting line, finance and the CEO. */
+    public const AUDIT_TYPES = ['expense', 'flex_work'];
+
+    /** @var array<string,array{email:string,full_name:?string,manager_email:?string,role:string,is_finance:int,is_ceo:int}>|null */
     private static ?array $org = null;
 
     /** The whole org chart, keyed by email. Loaded once per request. */
@@ -21,7 +28,7 @@ final class Access
     {
         if (self::$org === null) {
             self::$org = [];
-            foreach (Db::all('SELECT email, full_name, manager_email, role FROM org_members') as $r) {
+            foreach (Db::all('SELECT email, full_name, manager_email, role, is_finance, is_ceo FROM org_members') as $r) {
                 self::$org[$r['email']] = $r;
             }
         }
@@ -42,6 +49,67 @@ final class Access
     public static function isAdmin(array $me): bool
     {
         return (self::org()[$me['email']]['role'] ?? '') === 'admin';
+    }
+
+    public static function isFinance(array $me): bool
+    {
+        return (int) (self::org()[$me['email']]['is_finance'] ?? 0) === 1;
+    }
+
+    public static function isCeo(array $me): bool
+    {
+        return (int) (self::org()[$me['email']]['is_ceo'] ?? 0) === 1;
+    }
+
+    /** True if $me is anywhere above $employee in the reporting line (line manager, their manager, ...). */
+    public static function isAboveInLine(array $me, string $employee): bool
+    {
+        $seen = [];
+        $cur = self::managerOf($employee);
+        while ($cur !== null && !isset($seen[$cur])) {
+            if ($cur === $me['email']) {
+                return true;
+            }
+            $seen[$cur] = true;
+            $cur = self::managerOf($cur);
+        }
+        return false;
+    }
+
+    /**
+     * Who may see a routed form.
+     *  - Expense claims and flexible working requests: the employee, anyone above them in the
+     *    reporting line, the finance team, the CEO and admins.
+     *  - Self-certification and DSE: the usual rule (employee, line manager, one level above, admin).
+     */
+    public static function canViewSubmission(array $me, string $type, string $employee): bool
+    {
+        if (in_array($type, self::AUDIT_TYPES, true)) {
+            return $employee === $me['email'] || self::isAdmin($me) || self::isCeo($me)
+                || self::isFinance($me) || self::isAboveInLine($me, $employee);
+        }
+        return self::canView($me, $employee);
+    }
+
+    /**
+     * SQL condition limiting a submissions query of one type to what this person may see.
+     * @return array{0:string,1:array}
+     */
+    public static function submissionWhere(array $me, string $type, string $column): array
+    {
+        if (!in_array($type, self::AUDIT_TYPES, true)) {
+            return self::viewableWhere($me, $column);
+        }
+        if (self::isAdmin($me) || self::isCeo($me) || self::isFinance($me)) {
+            return ['1=1', []];
+        }
+        $emails = [$me['email']];
+        foreach (self::org() as $email => $_) {
+            if ($email !== $me['email'] && self::isAboveInLine($me, $email)) {
+                $emails[] = $email;
+            }
+        }
+        return [$column . ' IN (' . Db::placeholders($emails) . ')', $emails];
     }
 
     public static function isLineManagerOf(array $me, string $employee): bool

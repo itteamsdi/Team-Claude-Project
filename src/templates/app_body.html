@@ -21,6 +21,14 @@
       <select id="team-role"><option value="member">Member</option><option value="admin">Admin (sees all)</option></select>
       <select id="team-mgr"><option value="">Reports to… (none = top)</option></select>
     </div>
+    <div class="team-row">
+      <input id="team-jobtitle" type="text" placeholder="Job title" maxlength="200">
+      <input id="team-dept" type="text" placeholder="Department" maxlength="200">
+    </div>
+    <div class="team-flags">
+      <label><input type="checkbox" id="team-finance"> Finance team <span style="color:var(--muted);">(authorises expense payments, manages cost centres)</span></label>
+      <label><input type="checkbox" id="team-ceo"> CEO <span style="color:var(--muted);">(sees all expense and flexible working history)</span></label>
+    </div>
     <button class="team-btn" onclick="DB.invite()">+ Save person</button>
     <div id="team-temp" class="team-temp" hidden></div>
     <div class="auth-sec-label">Current team</div>

@@ -39,6 +39,13 @@ final class Input
         return $v;
     }
 
+    /** True/false sent as a JSON boolean, 1/0 or "true"/"false". Missing means false. */
+    public function bool(string $k): bool
+    {
+        $v = $this->data[$k] ?? false;
+        return $v === true || $v === 1 || $v === '1' || $v === 'true';
+    }
+
     public function email(string $k, bool $required = true): ?string
     {
         $v = Auth::normaliseEmail($this->str($k, 255, $required));

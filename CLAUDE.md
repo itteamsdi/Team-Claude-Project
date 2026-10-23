@@ -59,3 +59,8 @@ Project notes for future conversations (not part of the baseline above)
   The Supabase/Netlify demo, its files and its data were retired on 15 Oct 2026. "Export & share" was dropped.
 - Access rules live in src/Access.php; per-feature rules are in src/Api/*.php. Keep them in step with README "Access model".
 - Handbook and job description HTML is cleaned on the server by src/HtmlSanitizer.php (the DOM extension is not approved).
+- Initial testing fixes (23 Oct 2026, branch initial-testing): org_members gained job_title, department, is_finance, is_ceo;
+  expense claims are line manager approve -> finance authorise payment -> finance mark paid, with an audit trail in manager_data.trail;
+  receipts are uploaded through public/upload.php into STORAGE_DIR/uploads (src/Files.php) and served by public/file.php;
+  cost centres live in the cost_centres table (finance manages them). Expense and flexible working history is visible to the
+  whole reporting line above the employee, finance and the CEO (Access::canViewSubmission). All form decisions are final.
