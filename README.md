@@ -221,21 +221,21 @@ These rules are checked on the server for every request (`src/Access.php` and `s
 
 | Who | 1-2-1 reviews | Forms | Job description | Handbook | Team |
 |---|---|---|---|---|---|
-| The employee | View, edit, start own, sign as employee | Submit and view own | View own live version | Read | – |
-| Direct line manager | View, edit, create, sign as manager | View, authorise and decide | Propose changes | Read | – |
-| One level above (skip-level) | View only | View only | View live version only | Read | – |
-| Admin | View all, create, reopen signed-off reviews, delete | View all, authorise and decide | Edit, approve, master template | Edit | Manage |
-| Finance team (ticked in Manage Team) | As their own position in the org chart | View all expense claims and flexible working requests; authorise payment of approved claims and mark them paid; manage cost centres | – | Read | – |
-| CEO (ticked in Manage Team) | As their own position in the org chart | View all expense claims and flexible working requests | – | Read | – |
+| The employee | View own, sign as employee | Submit and view own | View own live version | Read | – |
+| Direct line manager | View, edit, start (direct reports only), sign as manager | View, approve or authorise, decide | Propose changes | Read | – |
+| Everyone further up the reporting line, up to the CEO | View only | View only | View live version only | Read | – |
+| CEO (ticked in Manage Team) | View everyone's, as top of the chain | View everyone's; manage cost centres | View | Read | – |
+| Finance team (ticked in Manage Team) | As their own position in the org chart | As their own position, plus all expense claims: authorise payment of approved claims, mark them paid; manage cost centres | As own position | Read | – |
+| Admin | As their own position in the org chart; can reopen a signed-off review they can see | As their own position in the org chart | Approve, master template | Edit | Manage |
 
-**Expense claims and flexible working requests** are also visible to **everyone above the employee in the reporting line** (line manager, their manager, and so on up), so each manager can look back at what the managers below them approved or rejected, and when. Self-certifications and DSE assessments keep the narrower rule: line manager and one level above.
+**Admin rights do not give access to anyone's reviews or forms** (agreed after initial testing, 28 Oct 2026). Admin means Manage Team, the Staff Handbook and job description approval. Reviews and forms follow the chain of command; finance joins in for expense claims only.
 
 **Expense claim steps:** the employee submits (with a Yes/No receipt answer and a file for each line marked Yes) → the line manager reviews the full claim and approves or rejects → anyone in the finance team authorises payment or rejects → finance marks it paid with the payment date. A reason is required to reject. Every step is recorded with who did it and when (the claim's audit trail).
 
 More rules:
 
-- A review can be edited only while nobody has signed it. Once both the employee and line manager have signed, it is **Complete** and locked. Only an admin can reopen it, which clears both signatures.
-- A review can be deleted by the person who created it, or by an admin, unless it is Complete.
+- A review can be edited only while nobody has signed it. Once both the employee and line manager have signed, it is **Complete** and locked. Only an admin who can see the review (someone in the employee's chain of command) can reopen it, which clears both signatures.
+- A review can be deleted by the person who created it, unless it is Complete.
 - The line manager who signs a review is the employee's **current** line manager in the org chart. If someone changes manager, their open reviews move to the new manager.
 - Nobody can authorise, decide or pay their own form, admins and finance included. Every decision (self-certification, each expense step, flexible working and DSE) is final once saved and stays in the history.
 - A line manager's proposed job description change is visible only to that manager and to admins until it is approved.

@@ -118,7 +118,7 @@ final class HtmlSanitizer
             $val = html_entity_decode($val, ENT_QUOTES | ENT_HTML5, 'UTF-8');
             if ($tag === 'a' && $name === 'href') {
                 $v = trim($val);
-                if (preg_match('#^(https?:|mailto:|\#)#i', $v)) {
+                if (preg_match('#^(https:|mailto:|\#)#i', $v)) {
                     $keep['href'] = $v;
                 }
             } elseif (($tag === 'td' || $tag === 'th') && ($name === 'colspan' || $name === 'rowspan')) {

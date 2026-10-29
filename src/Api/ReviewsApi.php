@@ -46,7 +46,7 @@ final class ReviewsApi
         if (!isset($org[$emp])) {
             throw new ApiError('Choose a team member from the list.');
         }
-        if (!Access::canEdit($me, $emp) && !Access::isAdmin($me)) {
+        if (!Access::isLineManagerOf($me, $emp)) {
             throw new ApiError('You can only start reviews for your direct reports.', 403);
         }
         $state = $in->object('state', 4_000_000);
@@ -102,7 +102,7 @@ final class ReviewsApi
     {
         $id = $in->id('id');
         $r = self::load($me, $id);
-        if ((int) $r['owner_user_id'] !== $me['id'] && !Access::isAdmin($me)) {
+        if ((int) $r['owner_user_id'] !== $me['id']) {
             throw new ApiError('You can only delete a review you created.', 403);
         }
         if ($r['status'] === 'Complete') {
@@ -272,7 +272,7 @@ final class ReviewsApi
             'reopened_by' => $r['reopened_by'],
             'created_at' => self::ts($r['created_at']),
             'updated_at' => self::ts($r['updated_at']),
-            'can_delete' => ((int) $r['owner_user_id'] === $me['id'] || Access::isAdmin($me)) && $r['status'] !== 'Complete',
+            'can_delete' => (int) $r['owner_user_id'] === $me['id'] && $r['status'] !== 'Complete',
         ];
     }
 }
