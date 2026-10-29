@@ -54,6 +54,8 @@ window.DB = {
     await this.loadOrg();
     const ab=document.getElementById("auth-admin-btn"); if(ab) ab.style.display=this.isAdmin?"block":"none";
     const tb=document.getElementById("tb-team"); if(tb) tb.style.display=this.isAdmin?"":"none";
+    const meRow=this.org.find(m=>(m.email||"").toLowerCase()===this.myEmail);
+    const cc=document.getElementById("tb-cc"); if(cc) cc.style.display=(meRow&&(meRow.is_finance||meRow.is_ceo))?"":"none";
     this.refreshNewReviewOptions();
     await this.loadReviews();
     this.currentId=null;
@@ -327,8 +329,8 @@ window.DB = {
   },
   refreshNewReviewOptions(){
     const sel=document.getElementById("auth-new-emp"); if(!sel) return;
-    let people = this.isAdmin ? this.org.slice()
-                              : this.org.filter(m=>(m.manager_email||"").toLowerCase()===this.myEmail);
+    // Reviews are only for your own direct reports (admin rights do not change this).
+    let people = this.org.filter(m=>(m.manager_email||"").toLowerCase()===this.myEmail);
     people = people.sort((a,b)=>((a.full_name||a.email)+"").localeCompare((b.full_name||b.email)+""));
     sel.innerHTML = '<option value="">'+(people.length?"Select a team member…":"No direct reports to review")+'</option>'
       + people.map(m=>'<option value="'+DB.esc(m.email)+'">'+DB.esc(m.full_name||m.email)+(m.manager_email?"":" (top)")+'</option>').join("");

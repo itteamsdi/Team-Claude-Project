@@ -326,6 +326,7 @@ HR.buildHistory = async function(){
     const r=d.row;
     return {html:`<tr>
       <td><b>${DB.esc(d._when?DB.fmtDate(d._when):"—")}</b></td>
+      <td>${DB.esc(DB.personName(r.employee_email)||r.employee_email||"—")}</td>
       <td>${DB.esc(r.manager_name||DB.personName(r.manager_email)||"—")}</td>
       <td>${t?`${t.light} <b>${d.avg}/5</b> <span style="color:var(--muted);font-size:11px;">${DB.esc(t.label)}</span>`:"—"}</td>
       <td>${chg}</td>
@@ -336,7 +337,7 @@ HR.buildHistory = async function(){
   el.innerHTML=`<div class="sdi-doc">${head}
     <div class="hr-head" style="margin-top:14px;"><h1 style="font-size:15pt;">${DB.esc(DB.personName(emp))}</h1>${sel}</div>
     ${stats}
-    <div class="hist-wrap"><table class="hist-tbl"><thead><tr><th>Review date</th><th>Reviewer</th><th>Overall rating</th><th>Change</th><th>Wellbeing</th><th>Signed off</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="hist-wrap"><table class="hist-tbl"><thead><tr><th>Review date</th><th>Employee</th><th>Reviewer</th><th>Overall rating</th><th>Change</th><th>Wellbeing</th><th>Signed off</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="hr-note" style="margin-top:10px;">Signed-off reviews open read-only. “Change” compares each review’s overall rating with the previous one.</div></div>`;
 };
 
@@ -520,6 +521,7 @@ HR.loadCostCentres=async function(force){
 };
 async function showExpenses(){ hrShow("page-expenses","expenses"); await HR.buildExpenses(); }
 HR.buildExpenses = async function(){
+  if(HR._ccNext){ HR._ccNext=false; return HR.showCostCentres(); }
   const el=document.getElementById("page-expenses"); if(!el) return; if(HR.needCloud(el)) return;
   const {me,mgr}=HR.myRows();
   await HR.loadCostCentres();
@@ -691,11 +693,12 @@ HR.openExpense = async function(id){
   const loose=files.filter(f=>f.item_index==null).map(f=>`<a href="file.php?id=${encodeURIComponent(f.id)}" target="_blank" rel="noopener">📎 ${DB.esc(f.name)}</a>`).join(" · ");
   let action="";
   const st=s.status==="authorised"?"approved":s.status;
-  if(!mine && isLM && st==="submitted"){
+  const acts=Array.isArray(s.actions)?s.actions:[];   // buttons decided by the server
+  if(acts.includes("approve")){
     action=HR.expActionBox("Line manager approval","Approve this claim to send it to the finance team, or reject it with a reason.",[["approve","✓ Approve","approve"],["reject","✗ Reject","reject"]],id);
-  } else if(!mine && fin && st==="approved"){
+  } else if(acts.includes("authorise_payment")){
     action=HR.expActionBox("Finance — authorise payment","Check the claim and receipts, then authorise payment or reject it with a reason.",[["authorise_payment","✓ Authorise payment","approve"],["reject","✗ Reject","reject"]],id);
-  } else if(!mine && fin && st==="payment_authorised"){
+  } else if(acts.includes("mark_paid")){
     action=HR.expActionBox("Finance — record payment","Enter the date the payment was made.",[["mark_paid","✓ Mark as paid","approve"]],id,true);
   }
   if(mine && s.status==="submitted"){
@@ -742,7 +745,12 @@ HR.addReceipt = async function(id){
   if(typeof toast==="function") toast("Receipt uploaded"); HR.openExpense(id);
 };
 
-/* Finance team: manage the cost centre list. */
+/* Cost Centres menu item (finance team and CEO): open the expenses page, then the cost centre list. */
+HR.openCostCentres = async function(){
+  if(typeof showExpenses==="function"){ HR._ccNext=true; showExpenses(); }
+  else HR.showCostCentres();
+};
+/* Finance team and CEO: manage the cost centre list. */
 HR.showCostCentres = async function(){
   const el=document.getElementById("page-expenses"); if(!el) return;
   await HR.loadCostCentres(true);
@@ -968,7 +976,7 @@ HR.fwMgrSection = function(s,canManage){
   }
   return `<div class="sdi-form-sec"><div class="sfs-head"><span class="num">7</span> Decision — for the line manager</div><div class="sfs-body">
     <div class="hr-note">Fields marked <span class="req"></span> must be completed. Once saved, the decision is final and kept in the history.</div>
-    <div class="hr-field"><label class="req">Meeting held on</label><input type="date" id="fwm-meeting"></div>
+    <div class="hr-field"><label class="req">Meeting held on</label><input type="date" id="fwm-meeting" value="${HR.today()}"></div>
     <div class="hr-field"><label class="req">Outcome</label><div class="opt-group" id="fwm-outcome-wrap">
       <label class="opt"><input type="radio" name="fwm-outcome" value="approved"> <span>Approved</span></label>
       <label class="opt"><input type="radio" name="fwm-outcome" value="trial"> <span>Approved on trial</span></label>

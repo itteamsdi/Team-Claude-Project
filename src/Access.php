@@ -4,21 +4,18 @@ declare(strict_types=1);
 namespace SdiHr;
 
 /**
- * Who may see or change whose records. These replace the Supabase row-level-security
- * functions (is_admin, can_view_employee, can_edit_employee, is_line_manager_of).
+ * Who may see or change whose records (rule agreed after initial testing, 28 Oct 2026).
  *
- *  - View:  the employee, their direct line manager, ONE level above that, or an admin.
+ *  - View:  the employee, anyone above them in the reporting line (line manager, their manager,
+ *           ... up to the CEO), and the CEO. Admin rights do NOT give access to anyone's records;
+ *           admin only means Manage Team, the Staff Handbook and job description approval.
  *  - Edit:  the employee or their direct line manager.
- *  - Admin: everything that is admin-only (team, handbook, JD approval).
- *
- * Routed forms have their own view rule (see canViewSubmission): expense claims and
- * flexible working requests are also visible to everyone above the employee in the
- * reporting line, the finance team and the CEO, so there is a full audit trail.
+ *  - Expense claims are also visible to the finance team, who authorise and pay them.
  */
 final class Access
 {
-    /** Form types whose history is open to the whole reporting line, finance and the CEO. */
-    public const AUDIT_TYPES = ['expense', 'flex_work'];
+    /** Form types the finance team can also see (they authorise and pay them). */
+    public const FINANCE_TYPES = ['expense'];
 
     /** @var array<string,array{email:string,full_name:?string,manager_email:?string,role:string,is_finance:int,is_ceo:int}>|null */
     private static ?array $org = null;
@@ -77,16 +74,13 @@ final class Access
     }
 
     /**
-     * Who may see a routed form.
-     *  - Expense claims and flexible working requests: the employee, anyone above them in the
-     *    reporting line, the finance team, the CEO and admins.
-     *  - Self-certification and DSE: the usual rule (employee, line manager, one level above, admin).
+     * Who may see a routed form: the usual chain-of-command rule (see canView), plus the
+     * finance team for expense claims.
      */
     public static function canViewSubmission(array $me, string $type, string $employee): bool
     {
-        if (in_array($type, self::AUDIT_TYPES, true)) {
-            return $employee === $me['email'] || self::isAdmin($me) || self::isCeo($me)
-                || self::isFinance($me) || self::isAboveInLine($me, $employee);
+        if (in_array($type, self::FINANCE_TYPES, true) && self::isFinance($me)) {
+            return true;
         }
         return self::canView($me, $employee);
     }
@@ -97,19 +91,10 @@ final class Access
      */
     public static function submissionWhere(array $me, string $type, string $column): array
     {
-        if (!in_array($type, self::AUDIT_TYPES, true)) {
-            return self::viewableWhere($me, $column);
-        }
-        if (self::isAdmin($me) || self::isCeo($me) || self::isFinance($me)) {
+        if (in_array($type, self::FINANCE_TYPES, true) && self::isFinance($me)) {
             return ['1=1', []];
         }
-        $emails = [$me['email']];
-        foreach (self::org() as $email => $_) {
-            if ($email !== $me['email'] && self::isAboveInLine($me, $email)) {
-                $emails[] = $email;
-            }
-        }
-        return [$column . ' IN (' . Db::placeholders($emails) . ')', $emails];
+        return self::viewableWhere($me, $column);
     }
 
     public static function isLineManagerOf(array $me, string $employee): bool
@@ -124,25 +109,15 @@ final class Access
 
     public static function canView(array $me, string $employee): bool
     {
-        if ($employee === $me['email'] || self::isAdmin($me)) {
-            return true;
-        }
-        $mgr = self::managerOf($employee);
-        if ($mgr === null) {
-            return false;
-        }
-        return $mgr === $me['email'] || self::managerOf($mgr) === $me['email'];
+        return $employee === $me['email'] || self::isCeo($me) || self::isAboveInLine($me, $employee);
     }
 
     /**
-     * Emails whose records this person may view, or null meaning "everyone" (admin).
-     * @return string[]|null
+     * Emails whose records this person may view.
+     * @return string[]
      */
-    public static function viewableEmails(array $me): ?array
+    public static function viewableEmails(array $me): array
     {
-        if (self::isAdmin($me)) {
-            return null;
-        }
         $out = [$me['email']];
         foreach (self::org() as $email => $_) {
             if ($email !== $me['email'] && self::canView($me, $email)) {
@@ -159,9 +134,6 @@ final class Access
     public static function viewableWhere(array $me, string $column): array
     {
         $emails = self::viewableEmails($me);
-        if ($emails === null) {
-            return ['1=1', []];
-        }
         return [$column . ' IN (' . Db::placeholders($emails) . ')', $emails];
     }
 }

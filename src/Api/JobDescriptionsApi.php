@@ -20,7 +20,7 @@ final class JobDescriptionsApi
     public static function get(array $me, Input $in): array
     {
         $emp = $in->email('employee_email');
-        if (!Access::canView($me, $emp)) {
+        if (!Access::canView($me, $emp) && !Access::isAdmin($me)) {
             throw new ApiError('You do not have access to that job description.', 403);
         }
         $r = Db::one('SELECT employee_email, content, pending_content, pending_by, pending_at, updated_at FROM job_descriptions WHERE employee_email = ?', [$emp]);
@@ -48,6 +48,9 @@ final class JobDescriptionsApi
     public static function submit(array $me, Input $in): array
     {
         $emp = $in->email('employee_email');
+        if (!isset(Access::org()[$emp])) {
+            throw new ApiError('Choose a team member from the list.');
+        }
         if (!Access::isLineManagerOf($me, $emp) && !Access::isAdmin($me)) {
             throw new ApiError("Only this person's line manager can propose changes to their job description.", 403);
         }

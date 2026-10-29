@@ -48,7 +48,9 @@ final class SubmissionsApi
     public static function get(array $me, Input $in): array
     {
         $s = self::load($me, $in->id('id'));
-        return ['item' => self::out($s, Files::forSubmission($s['id']))];
+        $item = self::out($s, Files::forSubmission($s['id']));
+        $item['actions'] = self::actionsFor($me, $s);
+        return ['item' => $item];
     }
 
     public static function create(array $me, Input $in): array
@@ -84,7 +86,7 @@ final class SubmissionsApi
         $md = self::managerData($s);
         $md['note'] = $note;
         $md['by'] = $me['email'];
-        self::saveDecision($me, $s['id'], $status, self::addTrail($md, $me, $status, $note));
+        self::saveDecision($me, $s['id'], $status, self::addTrail($md, $me, $status, $note), $s['status']);
         return ['status' => $status];
     }
 
@@ -130,7 +132,7 @@ final class SubmissionsApi
         if ($note !== '') {
             $md['note'] = $note;
         }
-        self::saveDecision($me, $s['id'], $new, self::addTrail($md, $me, $new, $note));
+        self::saveDecision($me, $s['id'], $new, self::addTrail($md, $me, $new, $note), $s['status']);
         return ['status' => $new];
     }
 
@@ -182,8 +184,31 @@ final class SubmissionsApi
             throw new ApiError('This form uses Authorise / Reject instead.');
         }
         $md['by'] = $me['email'];
-        self::saveDecision($me, $s['id'], $status, self::addTrail($md, $me, $status, (string) ($md['notes'] ?? '')));
+        self::saveDecision($me, $s['id'], $status, self::addTrail($md, $me, $status, (string) ($md['notes'] ?? '')), $s['status']);
         return ['status' => $status];
+    }
+
+    /**
+     * The expense steps this person may take on this claim right now. The screen shows exactly these
+     * buttons, so what you see always matches what the server will accept.
+     * @return string[]
+     */
+    private static function actionsFor(array $me, array $s): array
+    {
+        if ($s['type'] !== 'expense' || $s['employee_email'] === $me['email']) {
+            return [];
+        }
+        $status = $s['status'] === 'authorised' ? 'approved' : $s['status'];
+        if ($status === 'submitted' && Access::isLineManagerOf($me, $s['employee_email'])) {
+            return ['approve', 'reject'];
+        }
+        if ($status === 'approved' && Access::isFinance($me)) {
+            return ['authorise_payment', 'reject'];
+        }
+        if ($status === 'payment_authorised' && Access::isFinance($me)) {
+            return ['mark_paid'];
+        }
+        return [];
     }
 
     /** Used by upload.php and file.php. */
@@ -206,13 +231,21 @@ final class SubmissionsApi
 
     /* ---------------------------------------------------------------- helpers */
 
-    private static function saveDecision(array $me, string $id, string $status, array $managerData): void
+    /**
+     * Saves a decision only if the form is still in the status it was read in ($fromStatus),
+     * so two people deciding at the same moment cannot overwrite each other.
+     */
+    private static function saveDecision(array $me, string $id, string $status, array $managerData, string $fromStatus): void
     {
         $now = Db::now();
-        Db::run(
-            'UPDATE submissions SET status = ?, manager_data = ?, decided_by = ?, decided_at = ?, updated_at = ? WHERE id = ?',
-            [$status, json_encode($managerData, JSON_UNESCAPED_UNICODE), $me['email'], $now, $now, $id]
+        $st = Db::run(
+            'UPDATE submissions SET status = ?, manager_data = ?, decided_by = ?, decided_at = ?, updated_at = ?
+             WHERE id = ? AND status = ?',
+            [$status, json_encode($managerData, JSON_UNESCAPED_UNICODE), $me['email'], $now, $now, $id, $fromStatus]
         );
+        if ($st->rowCount() !== 1) {
+            throw new ApiError('Someone else has just updated this form. Reload to see the latest.', 409);
+        }
     }
 
     private static function managerData(array $s): array
@@ -234,7 +267,7 @@ final class SubmissionsApi
         if ($s['employee_email'] === $me['email']) {
             throw new ApiError('You cannot authorise or decide your own form. Your line manager does this.', 403);
         }
-        if (!Access::isLineManagerOf($me, $s['employee_email']) && !Access::isAdmin($me)) {
+        if (!Access::isLineManagerOf($me, $s['employee_email'])) {
             throw new ApiError("Only the employee's line manager can make this decision.", 403);
         }
     }

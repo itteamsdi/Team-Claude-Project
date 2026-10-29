@@ -69,7 +69,7 @@ function buildActions(){
       {v:'done',  icon:'✅', lbl:'Done'},
       {v:'missed',icon:'❌', lbl:'Not done'}
     ].map(b=>`<button onclick="setAction(${i},'status','${b.v}')" style="background:${st===b.v?(b.v==='done'?'#dcfce7':b.v==='missed'?'#fee2e2':'#fef3c7'):'#f3f4f6'};border:1px solid ${st===b.v?(b.v==='done'?'#86efac':b.v==='missed'?'#fca5a5':'#fde68a'):'#e5e7eb'};border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">${b.icon} ${b.lbl}</button>`).join('');
-    const owBtns=['Manager','Employee'].map(o=>`<button onclick="setAction(${i},'ownerType','${o}')" style="background:${(a.ownerType||''===o)?'#1e3a5f':'#f3f4f6'};color:${(a.ownerType||''===o)?'#fff':'var(--ink)'};border:1px solid ${(a.ownerType||''===o)?'#1e3a5f':'#e5e7eb'};border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;">${o}</button>`).join('');
+    const owBtns=['Manager','Employee'].map(o=>`<button onclick="setAction(${i},'ownerType','${o}')" style="background:${(a.ownerType||'')===o?'#1e3a5f':'#f3f4f6'};color:${(a.ownerType||'')===o?'#fff':'var(--ink)'};border:1px solid ${(a.ownerType||'')===o?'#1e3a5f':'#e5e7eb'};border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;">${o}</button>`).join('');
     return `<tr style="opacity:${st==='done'?'0.6':'1'};">
       <td><div class="act-num">${i+1}</div></td>
       <td><input type="text" class="inline-in" placeholder="Describe the action…" value="${esc(a.text)}" oninput="setAction(${i},'text',this.value)" style="text-decoration:${st==='done'?'line-through':'none'};"></td>
@@ -82,14 +82,15 @@ function buildActions(){
     </tr>`;
   }).join('');
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td colspan="5" style="padding:8px 14px;">
-"><button onclick="addAction()" style="background:none;border:1px dashed var(--border);color:var(--muted);border-radius:5px;padding:5px 14px;font-size:12px;cursor:pointer;width:100%;">+ Add action</button></td>`;
+  tr.innerHTML=`<td colspan="5" style="padding:8px 14px;"><button onclick="addAction()" style="background:none;border:1px dashed var(--border);color:var(--muted);border-radius:5px;padding:5px 14px;font-size:12px;cursor:pointer;width:100%;">+ Add action</button></td>`;
   tbody.appendChild(tr);
 }
 
 function setAction(i,field,val){
   if(!S.actions[i])S.actions[i]={text:'',owner:'',date:'',source:''};
   S.actions[i][field]=val;
+  // Owner and status are buttons: redraw so the chosen one is highlighted. Text and date are typed, so no redraw (keeps the cursor).
+  if(field==='ownerType'||field==='status') buildActions();
   autosave();
 }
 
@@ -725,6 +726,9 @@ const SIGNOFF_FIELDS={empEmail:'so-emp-email',mgrEmail:'so-mgr-email',chairName:
 function setSignoff(k,v){if(!S.signoff)S.signoff={};S.signoff[k]=v;autosave();}
 function restoreSignoff(){
   const so=S.signoff||{};
+  // The Chair is the CEO set in Manage Team; fill it in when the review has none yet.
+  const ceo=(window.DB&&Array.isArray(DB.org))?DB.org.find(m=>m.is_ceo):null;
+  if(ceo){ if(!so.chairName) so.chairName=ceo.full_name||ceo.email; if(!so.chairEmail) so.chairEmail=ceo.email; S.signoff=so; }
   Object.keys(SIGNOFF_FIELDS).forEach(k=>{const el=document.getElementById(SIGNOFF_FIELDS[k]);if(el&&!el.matches(':focus'))el.value=so[k]||'';});
   if(window.DB&&typeof DB.renderSignoff==='function')DB.renderSignoff();
 }

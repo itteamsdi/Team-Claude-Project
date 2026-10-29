@@ -11,7 +11,7 @@ use SdiHr\Input;
 /**
  * Cost centres offered on the expense claim form.
  *  - Everyone signed in can read the list.
- *  - The finance team (and admins) add, rename, reorder and delete them.
+ *  - The finance team and the CEO add, rename, reorder and delete them.
  * Claims keep the cost centre's name as it was when submitted, so changes here never alter past claims.
  */
 final class CostCentresApi
@@ -72,13 +72,13 @@ final class CostCentresApi
 
     private static function canManage(array $me): bool
     {
-        return Access::isFinance($me) || Access::isAdmin($me);
+        return Access::isFinance($me) || Access::isCeo($me);
     }
 
     private static function requireManager(array $me): void
     {
         if (!self::canManage($me)) {
-            throw new ApiError('Only the finance team can change the cost centres.', 403);
+            throw new ApiError('Only the finance team and the CEO can change the cost centres.', 403);
         }
     }
 }
